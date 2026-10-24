@@ -65,7 +65,7 @@ const B=[-80.27,-79.63,36.98,37.49];
 const col=n=>getComputedStyle(document.documentElement).getPropertyValue(BANDS[n][2]).trim()||"#888";
 // Leaflet map over OpenStreetMap tiles. Markers are the anonymized premises (already rounded to ~400 m).
 const map=L.map("map",{zoomControl:true}).fitBounds([[B[2],B[0]],[B[3],B[1]]]);
-L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap contributors"}).addTo(map);
+L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",{maxZoom:19,attribution:"Tiles © Esri — Source: Esri, HERE, Garmin, USGS, NGA, EPA, NPS"}).addTo(map);
 const cvRenderer=L.canvas({padding:.5});// canvas renderer scales to tens of thousands of points
 const dmgLayer=L.layerGroup();let markers=[],selMarker=null,addrMarker=null;
 // --- Storm simulation state & layers ---
