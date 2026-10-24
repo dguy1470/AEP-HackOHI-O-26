@@ -1,0 +1,47 @@
+# Render blueprint for the Outage Concierge.
+# One FastAPI service that serves both the API and the static app.
+#
+# Deploy: push this repo to GitHub, then in Render:
+#   New +  ->  Blueprint  ->  pick this repo. Render reads this file.
+# After it builds, set the secret env vars (below) in the service's Environment tab.
+services:
+  - type: web
+    name: outage-concierge
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    # Render provides $PORT; bind to it.
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      # Non-secret defaults are set here; secrets are added in the dashboard (sync:false).
+      - key: ANTHROPIC_MODEL
+        value: claude-3-5-haiku-latest
+      - key: NOMINATIM_USER_AGENT
+        value: OutageConcierge/1.0 (render)
+      - key: ALLOWED_ORIGINS
+        value: "*"
+      # Persist the SQLite DB on a disk so subscribers survive redeploys.
+      - key: DB_PATH
+        value: /var/data/concierge.db
+      # --- Secrets: leave blank here, fill in the Render dashboard (never commit) ---
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: ADMIN_TOKEN
+        sync: false
+    # A small persistent disk so the SQLite database isn't wiped on redeploy.
+    disk:
+      name: concierge-data
+      mountPath: /var/data
+      sizeGB: 1
