@@ -80,6 +80,12 @@ details>*:not(summary){margin-bottom:10px}
 <div class="row" style="justify-content:space-between"><b>🔔 Get notified in your browser</b><span class="mut" id="notifState"></span></div>
 <p class="hint">Turn on alerts and we’ll pop a simple message here if the storm heads your way. No account, no sign-up.</p>
 <div class="row"><button id="notifOn">Turn on alerts</button><button id="notifTest">Send a test alert</button><label><input type="checkbox" id="notifStorm" checked> alert me when the storm nears my area</label></div></div>
+<div id="subBox" style="display:none;margin-top:8px;padding:10px;border:1px solid var(--bd);border-radius:8px">
+<b>✉️ Email & text alerts</b>
+<p class="hint">Prefer email or a text? Sign up and we’ll reach you there too.</p>
+<div class="row"><label><input type="checkbox" id="subEmailOn"> Email</label><input id="subEmail" type="email" placeholder="you@example.com" style="flex:1;min-width:140px"></div>
+<div class="row" style="margin-top:6px"><label><input type="checkbox" id="subSmsOn"> Text</label><input id="subPhone" type="tel" placeholder="+1 555 123 4567" style="flex:1;min-width:140px"></div>
+<div class="row" style="margin-top:6px"><button id="subBtn">Sign me up</button><span class="mut" id="subMsg"></span></div></div>
 <details><summary>See example alert messages</summary><div class="row" id="mt"></div><div class="msg" id="msg"></div></details></section>
 <details><summary>How this works & what’s behind the numbers</summary>
 <div class="cols"><div><b>What’s real</b><br>Your area’s past storm damage and the equipment that feeds your power. Not the live grid.</div><div><b>What’s estimated</b><br>Risk and repair-time ranges come from past storms. Treat them as rough guides, not promises.</div><div><b>Your part</b><br>The checklists and alerts follow the challenge’s documented rules.</div></div><p class="mut" id="model"></p></details>
@@ -145,13 +151,13 @@ $("#geomsg").innerHTML=`${label?"📍 "+label+" · ":""}checking the spot about 
 // Forward geocode a typed address via OSM Nominatim, then snap.
 async function findNearest(){const q=$("#addr").value.trim();if(!q){$("#geomsg").textContent="Type an address or place first.";return}
 $("#geomsg").textContent="Looking up address…";
-try{const res=await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&q="+encodeURIComponent(q),{headers:{"Accept":"application/json"}});const js=await res.json();
+try{const url=backend.up?"/api/geocode?q="+encodeURIComponent(q):"https://nominatim.openstreetmap.org/search?format=json&limit=1&q="+encodeURIComponent(q);const res=await fetch(url,{headers:{"Accept":"application/json"}});const js=await res.json();
 if(!js.length){$("#geomsg").textContent="Couldn’t find that address. Try adding a city or ZIP.";return}
 snapTo(+js[0].lat,+js[0].lon,js[0].display_name.split(",").slice(0,2).join(","));
 }catch(err){$("#geomsg").textContent="Address lookup failed (needs an internet connection). You can still click a point on the map."}}
 // Reverse geocode a clicked point to an address, then snap.
 async function clickToAddress(lat,lon){$("#geomsg").textContent="Finding the address at that point…";
-try{const res=await fetch("https://nominatim.openstreetmap.org/reverse?format=json&zoom=18&lat="+lat+"&lon="+lon,{headers:{"Accept":"application/json"}});const js=await res.json();
+try{const url=backend.up?`/api/reverse?lat=${lat}&lon=${lon}`:`https://nominatim.openstreetmap.org/reverse?format=json&zoom=18&lat=${lat}&lon=${lon}`;const res=await fetch(url,{headers:{"Accept":"application/json"}});const js=await res.json();
 const label=js&&js.display_name?js.display_name.split(",").slice(0,3).join(","):`${lat.toFixed(4)}, ${lon.toFixed(4)}`;
 if(js&&js.display_name)$("#addr").value=js.display_name;
 snapTo(lat,lon,label);
@@ -266,6 +272,9 @@ $("#chips").innerHTML=QS.map(q=>`<button>${q}</button>`).join("");
 // ---- Conversational concierge: real Claude when a key is set, warm offline flow otherwise ----
 const escHtml=s=>s.replace(/[&<]/g,m=>m=="&"?"&amp;":"&lt;");
 const aiCfg=()=>({key:localStorage.getItem("ai_key")||"",model:localStorage.getItem("ai_model")||"claude-3-5-haiku-latest"});
+// If a backend is serving this page, prefer it (chat key stays server-side; no per-user key).
+let backend={chat:false,email:false,sms:false,up:false};
+(async()=>{try{const r=await fetch("/api/health");if(r.ok){const j=await r.json();backend={...j,up:true};aiStatus();if(typeof revealSub==="function")revealSub()}}catch(e){}})();
 let history=[];// {role, content} pairs for the Claude conversation
 function bubble(who,text,cls){$("#chat").innerHTML+=`<p${cls?` class="${cls}"`:""}>${who?`<b>${who}:</b> `:""}${escHtml(text).replace(/\n/g,"<br>")}</p>`;$("#chat").scrollTop=1e5}
 // Compact plain-language snapshot of the user's current situation, so answers stay grounded.
@@ -277,11 +286,18 @@ return s}
 const SYS=`You are the AI Outage Concierge for an electric utility, talking with a customer who may be worried about a storm and losing power. Be warm, calm and reassuring, like a caring human support agent. Keep replies short (2-4 sentences). Always end by asking one gentle, relevant follow-up question to understand their situation and help them feel supported (e.g. about who is home, medical or mobility needs, pets, how they're feeling, whether they have supplies). Use the SITUATION context for facts; never invent outage data or promise exact restoration times — call numbers estimates. For any life-threatening emergency or downed power line, tell them to call 911 and stay 30 feet away. Do not collect names, addresses or account numbers.`;
 async function askAI(q){const {key,model}=aiCfg();history.push({role:"user",content:q});
 const thinking=document.createElement("p");thinking.className="mut";thinking.textContent="Concierge is typing…";$("#chat").appendChild(thinking);$("#chat").scrollTop=1e5;
-try{const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"x-api-key":key,"anthropic-version":"2023-06-01","content-type":"application/json","anthropic-dangerous-direct-browser-access":"true"},
+try{let a;
+if(backend.chat){// backend holds the key; browser never sees it
+const res=await fetch("/api/chat",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({messages:history.slice(-10),situation:ctxSummary()})});
+const js=await res.json();thinking.remove();
+if(!res.ok){bubble("Concierge","I couldn’t reach the AI service ("+(js.detail||"error")+"). I’ll answer in simple mode instead.");history.pop();return askOffline(q)}
+a=js.reply||"Sorry, I didn’t catch that.";
+}else{// no backend: direct call with the user's own key
+const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"x-api-key":key,"anthropic-version":"2023-06-01","content-type":"application/json","anthropic-dangerous-direct-browser-access":"true"},
 body:JSON.stringify({model,max_tokens:400,system:SYS+"\n\nSITUATION: "+ctxSummary(),messages:history.slice(-10)})});
 const js=await res.json();thinking.remove();
 if(!res.ok){const m=js&&js.error&&js.error.message?js.error.message:"request failed";bubble("Concierge","I couldn’t reach the AI service ("+m+"). I’ll answer in simple mode instead.");history.pop();return askOffline(q)}
-const a=(js.content&&js.content[0]&&js.content[0].text)?js.content[0].text:"Sorry, I didn’t catch that.";
+a=(js.content&&js.content[0]&&js.content[0].text)?js.content[0].text:"Sorry, I didn’t catch that.";}
 history.push({role:"assistant",content:a});bubble("Concierge",a)}
 catch(err){thinking.remove();bubble("Concierge","I’m having trouble connecting. Let me help in simple mode instead.");history.pop();askOffline(q)}}
 // Warm offline flow: grounded answers plus an empathetic follow-up question. No key needed.
@@ -294,12 +310,12 @@ else if(/alert|qualif|notif/.test(t))a=c.el?"Good news — this situation qualif
 else if(/scared|worried|anxious|nervous|afraid|stress|alone|help/.test(t))a="That’s completely understandable, and you’re not alone in this. Let’s take it one step at a time — I’ll stay with you.";
 else a="I’m here to help with outage risk, restoration, getting prepared, and staying calm. For any emergency or downed line, call 911 and keep 30 feet away.";
 setTimeout(()=>{bubble("Concierge",a+"\n\n"+FOLLOW[offStep%FOLLOW.length]);offStep++},150)}
-// ask() always prints the user's message once, then routes to Claude or the offline flow.
-function ask(q){bubble("You",q,"u");const {key}=aiCfg();if(key)askAI(q);else askOffline(q)}
+// ask() always prints the user's message once, then routes to Claude (backend or key) or offline.
+function ask(q){bubble("You",q,"u");const {key}=aiCfg();if(backend.chat||key)askAI(q);else askOffline(q)}
 $("#chips").querySelectorAll("button").forEach(b=>b.onclick=()=>ask(b.textContent));$("#go").onclick=()=>{const v=$("#q").value.trim();if(v){ask(v);$("#q").value=""}};$("#q").onkeydown=e=>{if(e.key=="Enter")$("#go").click()};
 // AI settings panel
 $("#aiToggle").onclick=()=>{const p=$("#aiPanel");p.style.display=p.style.display=="none"?"block":"none"};
-function aiStatus(){const{key,model}=aiCfg();$("#aiStatus").textContent=key?("Connected · "+model):"Not connected (offline mode)";$("#aiKey").value=key;$("#aiModel").value=model}
+function aiStatus(){const{key,model}=aiCfg();$("#aiStatus").textContent=backend.chat?"Connected via server (no key needed)":key?("Connected · "+model):"Not connected (offline mode)";$("#aiKey").value=key;$("#aiModel").value=model}
 $("#aiSave").onclick=()=>{localStorage.setItem("ai_key",$("#aiKey").value.trim());localStorage.setItem("ai_model",$("#aiModel").value.trim()||"claude-3-5-haiku-latest");history=[];aiStatus();bubble("Concierge",$("#aiKey").value.trim()?"Thanks — I’m connected and ready to chat. How are you doing right now?":"Saved. I’ll keep helping in offline mode.")};
 aiStatus();
 // ---- Real browser notifications (no backend needed) ----
@@ -321,5 +337,17 @@ function maybeStormNotify(){if(!$("#notifStorm").checked||!storm.on)return;const
 if(d<storm.rad&&!notifiedForStorm){notifiedForStorm=true;showNote("⚡ Storm reaching your area",simpleMsg(Math.max(2,S.ctx?S.ctx.k.band:2)))}
 if(d>=storm.rad*1.4)notifiedForStorm=false}
 notifState();
+// ---- Email / text sign-up (needs the backend to actually send) ----
+function revealSub(){if(backend.up)$("#subBox").style.display="block"}
+$("#subBtn").onclick=async()=>{const channels=[];if($("#subEmailOn").checked)channels.push("email");if($("#subSmsOn").checked)channels.push("sms");
+if(!channels.length){$("#subMsg").textContent="Pick email, text, or both.";return}
+$("#subMsg").textContent="Signing you up…";
+try{const r=await fetch("/api/subscribe",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email:$("#subEmail").value.trim()||null,phone:$("#subPhone").value.trim()||null,channels,area:D.rows[S.i]?"P-"+D.rows[S.i][0]:""})});
+const j=await r.json();
+if(!r.ok){$("#subMsg").textContent=j.detail||"Sign-up failed.";return}
+const sent=Object.entries(j.delivered||{}).filter(([k,v])=>v).map(([k])=>k);
+$("#subMsg").textContent=sent.length?("✅ You’re signed up — check your "+sent.join(" and ")+"."):"✅ Saved. (Server is in demo mode, so no real message was sent.)";
+}catch(e){$("#subMsg").textContent="Couldn’t reach the server."}};
+notifState();revealSub();
 S.i=D.rows.slice(0,40).findIndex(r=>r[12].length>3);S.i=Math.max(0,S.i);$("#pick").value=S.i;upd();
 </script></body></html>

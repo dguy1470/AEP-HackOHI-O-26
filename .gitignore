@@ -8,3 +8,7 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+# Secrets / backend env (never commit real credentials)
+.env
+backend/.env
+*.env.local
