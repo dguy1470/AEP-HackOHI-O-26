@@ -1,61 +1,163 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>AI Outage Concierge</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--bg:#f5f6f8;--card:#fff;--tx:#17202a;--mut:#596573;--bd:#dce1e7;--ac:#b4262b;--acbg:#fbeaea;--lo:#2e8b57;--md:#c99700;--el:#e07b00;--hi:#c0262d}
-@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12161b;--card:#1b2128;--tx:#e8ecf0;--mut:#9aa6b2;--bd:#2c343d;--ac:#ff7075;--acbg:#3a2224;--lo:#4cc283;--md:#e8bd2e;--el:#ff9a2e;--hi:#ff5a60}}
-:root[data-theme="dark"]{--bg:#12161b;--card:#1b2128;--tx:#e8ecf0;--mut:#9aa6b2;--bd:#2c343d;--ac:#ff7075;--acbg:#3a2224;--lo:#4cc283;--md:#e8bd2e;--el:#ff9a2e;--hi:#ff5a60}
-html{scroll-padding-top:env(safe-area-inset-top,0px)}*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-header{padding:14px 16px;border-bottom:1px solid var(--bd);background:var(--card)}header h1{margin:0;font-size:19px}header p{margin:2px 0 0;color:var(--mut);font-size:13px}
-main{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:14px;padding:14px;max-width:1280px;margin:auto}
-@media(max-width:860px){main{grid-template-columns:1fr}}
-.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px;margin-bottom:14px}
-h2{font-size:15px;margin:0 0 8px}h3{font-size:13px;margin:10px 0 4px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em}
-label{font-size:13px;color:var(--mut);display:block;margin:6px 0 2px}select,input,button{font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:6px 9px;max-width:100%}
-button{cursor:pointer}button:hover{border-color:var(--ac)}button.on{background:var(--acbg);border-color:var(--ac)}
-#map{width:100%;height:360px;border-radius:8px;border:1px solid var(--bd);background:var(--bg)}
-.leaflet-container{border-radius:8px;font:inherit}
+:root{
+  --bg:#eef1f5;--card:#ffffff;--tx:#141b24;--mut:#5b6b7c;--bd:#e2e7ee;
+  --brand:#0b2a4a;--brand2:#13426e;--ac:#c0262d;--acbg:#fbeaea;
+  --lo:#1f8f5f;--md:#c4920a;--el:#e07b00;--hi:#c0262d;
+  --r:14px;--r2:10px;
+  --sh:0 1px 2px rgba(16,26,40,.06),0 4px 16px rgba(16,26,40,.06);
+  --sh2:0 2px 6px rgba(16,26,40,.08),0 10px 30px rgba(16,26,40,.10);
+}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0d1117;--card:#161b22;--tx:#e8ecf2;--mut:#9aa6b4;--bd:#273040;
+  --brand:#0e2740;--brand2:#13426e;--ac:#ff6b70;--acbg:#3a2224;
+  --lo:#49c88a;--md:#e8bd2e;--el:#ff9a2e;--hi:#ff5a60;
+  --sh:0 1px 2px rgba(0,0,0,.4),0 4px 16px rgba(0,0,0,.35);
+  --sh2:0 2px 6px rgba(0,0,0,.5),0 10px 30px rgba(0,0,0,.45);
+}}
+*{box-sizing:border-box}
+html{scroll-padding-top:70px}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+
+/* Branded top bar */
+header.topbar{position:sticky;top:0;z-index:600;background:linear-gradient(100deg,var(--brand),var(--brand2));color:#fff;box-shadow:var(--sh)}
+header.topbar .wrap{max-width:1180px;margin:auto;padding:14px 20px;display:flex;align-items:center;gap:14px}
+.logo{width:38px;height:38px;border-radius:10px;background:rgba(255,255,255,.12);display:grid;place-items:center;font-size:20px;flex:none}
+header.topbar h1{margin:0;font-size:19px;font-weight:700;letter-spacing:-.01em;color:#fff}
+header.topbar p{margin:1px 0 0;font-size:12.5px;color:rgba(255,255,255,.72);max-width:70ch}
+
+/* Tabs */
+nav.tabs{position:sticky;top:0;z-index:500;background:var(--card);border-bottom:1px solid var(--bd);box-shadow:var(--sh)}
+nav.tabs .wrap{display:flex;gap:4px;flex-wrap:wrap;max-width:1180px;margin:auto;padding:6px 16px}
+nav.tabs a{display:inline-flex;align-items:center;gap:6px;padding:9px 15px;border-radius:99px;color:var(--mut);text-decoration:none;font-size:14px;font-weight:600;transition:background .15s,color .15s}
+nav.tabs a:hover{background:var(--bg);color:var(--tx)}
+nav.tabs a.active{background:var(--ac);color:#fff;box-shadow:0 2px 8px rgba(192,38,45,.35)}
+
+main{max-width:1180px;margin:auto;padding:20px 16px 40px}
+.view>div{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:18px;align-items:start}
+@media(max-width:900px){.view>div{grid-template-columns:1fr}}
+/* Single-column (centered) views for chat and alerts */
+#view-concierge>div,#view-alerts>div{grid-template-columns:minmax(0,720px);justify-content:center}
+.view.active{animation:fade .25s ease}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+.card{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);padding:18px;margin-bottom:18px;box-shadow:var(--sh)}
+h2{font-size:17px;font-weight:700;letter-spacing:-.01em;margin:0 0 10px}
+h3{font-size:12px;margin:14px 0 6px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+
+label{font-size:13px;color:var(--mut);display:block;margin:8px 0 3px;font-weight:500}
+select,input,button,textarea{font:inherit;color:var(--tx);background:var(--card);border:1px solid var(--bd);border-radius:var(--r2);padding:9px 11px;max-width:100%;transition:border-color .15s,box-shadow .15s}
+select,input{box-shadow:inset 0 1px 2px rgba(16,26,40,.04)}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand2);box-shadow:0 0 0 3px rgba(19,66,110,.15)}
+button{cursor:pointer;font-weight:600;background:var(--bg)}
+button:hover{border-color:var(--brand2);background:var(--card)}
+button.on{background:var(--acbg);border-color:var(--ac);color:var(--ac)}
+
+#map{width:100%;height:380px;border-radius:var(--r2);border:1px solid var(--bd);background:var(--bg);box-shadow:inset 0 0 0 1px rgba(0,0,0,.02)}
+.leaflet-container{border-radius:var(--r2);font:inherit}
 #addr{flex:1;min-width:140px}
-.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.mut{color:var(--mut);font-size:13px}
-.band{display:inline-block;padding:3px 12px;border-radius:99px;color:#fff;font-weight:700;font-size:17px}
-.bar{height:9px;border-radius:5px;background:var(--bd);position:relative;margin:2px 0 7px}.bar i{position:absolute;top:0;bottom:0;border-radius:5px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.mut{color:var(--mut);font-size:13px}
+.band{display:inline-block;padding:4px 14px;border-radius:99px;color:#fff;font-weight:700;font-size:16px;letter-spacing:.01em}
+.bar{height:8px;border-radius:5px;background:var(--bd);position:relative;margin:3px 0 9px;overflow:hidden}.bar i{position:absolute;top:0;bottom:0;border-radius:5px}
 .step{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}.step div{font-size:12px;color:var(--mut)}.step input{width:100%}
-.tl{border-left:3px solid var(--bd);margin:6px 0 0 6px;padding-left:12px}.tl p{margin:0 0 7px;font-size:14px}
-.warn{background:var(--acbg);border-left:4px solid var(--ac);padding:8px 10px;border-radius:6px;margin:8px 0;font-size:14px}
-.cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}@media(max-width:600px){.cols{grid-template-columns:1fr}}
-.cols div{border:1px solid var(--bd);border-radius:8px;padding:8px;font-size:13px}
-.msg{border:1px solid var(--bd);border-radius:8px;padding:9px;margin-top:6px;background:var(--bg);font-size:14px;white-space:pre-wrap}
-ul{margin:4px 0;padding-left:20px}#chat{max-height:200px;overflow:auto}#chat p{margin:5px 0}.u{color:var(--ac);font-weight:600}
-.lg span{display:inline-block;width:10px;height:10px;border-radius:50%;margin:0 3px 0 8px}
-details{border:1px solid var(--bd);border-radius:8px;margin:8px 0;padding:0 10px;background:var(--bg)}
-details>summary{cursor:pointer;padding:9px 0;font-weight:600;font-size:14px;list-style:none}
+.tl{border-left:3px solid var(--bd);margin:8px 0 0 6px;padding-left:14px}.tl p{margin:0 0 9px;font-size:14px;position:relative}
+.tl p:before{content:"";position:absolute;left:-19px;top:7px;width:8px;height:8px;border-radius:50%;background:var(--ac)}
+.warn{background:var(--acbg);border-left:4px solid var(--ac);padding:10px 12px;border-radius:var(--r2);margin:10px 0;font-size:14px}
+.cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}@media(max-width:600px){.cols{grid-template-columns:1fr}}
+.cols div{border:1px solid var(--bd);border-radius:var(--r2);padding:12px;font-size:13px;background:var(--bg)}
+.msg{border:1px solid var(--bd);border-radius:var(--r2);padding:11px;margin-top:8px;background:var(--bg);font-size:14px;white-space:pre-wrap}
+ul{margin:6px 0;padding-left:20px}ul li{margin:3px 0}
+#chat{max-height:260px;overflow:auto;border:1px solid var(--bd);border-radius:var(--r2);padding:12px;background:var(--bg)}
+#chat p{margin:7px 0}.u{color:var(--ac);font-weight:600}
+.lg{display:flex;align-items:center;flex-wrap:wrap;margin-top:10px}.lg span{display:inline-block;width:11px;height:11px;border-radius:50%;margin:0 4px 0 10px;box-shadow:0 0 0 1px rgba(0,0,0,.08)}
+details{border:1px solid var(--bd);border-radius:var(--r2);margin:10px 0;padding:0 12px;background:var(--bg)}
+details>summary{cursor:pointer;padding:11px 0;font-weight:600;font-size:14px;list-style:none}
 details>summary::-webkit-details-marker{display:none}
-details>summary:before{content:"▸ ";color:var(--mut)}details[open]>summary:before{content:"▾ "}
-details>*:not(summary){margin-bottom:10px}
-.addr-row input{padding:10px 12px;font-size:15px}.addr-row button{padding:10px 14px;font-weight:600;background:var(--acbg);border-color:var(--ac)}
-.hint{color:var(--mut);font-size:13px;margin:0 0 8px}
-.big-risk{font-size:15px;margin:6px 0 0}
+details>summary:before{content:"▸";color:var(--mut);margin-right:8px;display:inline-block;transition:transform .15s}details[open]>summary:before{transform:rotate(90deg)}
+details>*:not(summary){margin-bottom:12px}
+.addr-row input{padding:12px 14px;font-size:15px}
+.addr-row button{padding:12px 18px;font-weight:700;background:var(--ac);border-color:var(--ac);color:#fff;box-shadow:0 2px 8px rgba(192,38,45,.3)}
+.addr-row button:hover{filter:brightness(1.07);background:var(--ac)}
+.hint{color:var(--mut);font-size:13px;margin:0 0 8px}.hint a{color:var(--brand2);font-weight:600;text-decoration:none}.hint a:hover{text-decoration:underline}
+.big-risk{font-size:16px;margin:4px 0 8px;font-weight:600}
 #chat:empty:before{content:"👋 Hi, I’m your outage concierge. Ask me anything about the storm, your power, or how to stay ready.";color:var(--mut);font-size:14px}
-#chips button{border-radius:99px;font-size:13px}
+#chips{margin-top:8px}#chips button{border-radius:99px;font-size:13px;padding:7px 13px}
+#go{background:var(--ac);border-color:var(--ac);color:#fff;font-weight:700}
+.view{display:none}.view.active{display:block}
 </style></head><body>
-<header><h1>⚡ Outage Concierge</h1><p>Check your storm risk, see how long power might be out, and get a clear plan — in plain language. <span class="mut">Prototype using Appalachian Power data; all numbers are estimates, not confirmed outage info.</span></p></header>
-<main><div>
+<header class="topbar"><div class="wrap"><div class="logo">⚡</div><div><h1>Outage Concierge</h1><p>Check your storm risk, see how long power might be out, and get a clear plan — in plain language. Prototype using Appalachian Power data; estimates only, not confirmed outage info.</p></div></div></header>
+<nav class="tabs"><div class="wrap">
+<a href="#map" data-view="map">🗺️ Map &amp; Risk</a>
+<a href="#storm" data-view="storm">🌪️ Storm</a>
+<a href="#prepare" data-view="prepare">🧰 Prepare</a>
+<a href="#alerts" data-view="alerts">🔔 Alerts</a>
+<a href="#concierge" data-view="concierge">💬 Concierge</a>
+</div></nav>
+<main>
+
+<!-- ===== MAP & RISK ===== -->
+<section class="view" id="view-map"><div>
 <section class="card"><h2>Start here: where are you?</h2>
 <p class="hint">Type your address (or tap the map) and we’ll check the location nearest you.</p>
 <div class="row addr-row" style="margin-bottom:8px"><input id="addr" placeholder="Enter your address or town…" style="flex:1"><button id="findbtn">Check my area</button></div>
-<div id="map" aria-label="Map of your area colored by outage risk"></div>
+<div id="mapSlotMap"><div id="map" aria-label="Map of your area colored by outage risk"></div></div>
 <div class="mut" id="geomsg" style="margin-top:6px"></div>
 <div class="mut lg">How risky:<span style="background:var(--lo)"></span>Low<span style="background:var(--md)"></span>Medium<span style="background:var(--el)"></span>Higher<span style="background:var(--hi)"></span>High<span style="background:none;border:1px solid var(--tx)"></span>Your spot</div>
 <label for="sev" style="margin-top:8px">How bad is the storm?</label><select id="sev"></select>
-<details><summary>🌪 Try a live storm simulation</summary>
-<p class="hint">A pretend storm (not live weather) sweeps across the area so you can watch how risk changes as it gets closer.</p>
-<div class="row"><button id="stormplay">▶ Start storm</button><button id="stormreset">Reset</button><button id="stormplace" title="Then click the map to set where the storm starts">Place storm…</button><span class="mut" id="stormclock">stopped</span></div>
-<div class="row" style="margin-top:6px"><label><input type="checkbox" id="zones" checked> highlight hardest-hit areas</label><label><input type="checkbox" id="track" checked> show forecast path</label></div>
-<div class="row" style="margin-top:6px"><label>Strength<input type="range" id="sintens" min="0.3" max="2" step="0.1" value="1.1"></label><label>Size<input type="range" id="ssize" min="4" max="40" step="1" value="14"></label><label>Speed<input type="range" id="sspeed" min="1" max="8" step="1" value="3"></label><label>Direction<input type="range" id="shdg" min="0" max="359" step="5" value="75"></label></div></details>
 <details><summary>⚙ Advanced: pick an exact location</summary>
 <div class="row"><label for="pick">Location</label><select id="pick"></select><label><input type="checkbox" id="dm"> show past storm damage</label></div></details>
-<p class="mut" style="margin-top:8px">Your privacy matters: addresses aren’t saved, IDs are hidden, and we never show names or account details.</p></section>
+<p class="hint" style="margin-top:8px">Want to watch a storm move through? See the <a href="#storm">Storm</a> tab.</p></section>
+<section class="card"><h2>Your outage risk</h2><div id="risk"></div>
+<p class="hint">Next: make a plan on the <a href="#prepare">Prepare</a> tab, or set up <a href="#alerts">Alerts</a>.</p></section>
+</div></section>
+
+<!-- ===== STORM ===== -->
+<section class="view" id="view-storm"><div>
+<section class="card"><h2>🌪️ Live storm simulation</h2>
+<p class="hint">A pretend storm (not live weather) sweeps across the area so you can watch how risk changes as it gets closer. It uses the location you picked on the <a href="#map">Map</a> tab.</p>
+<div class="row"><button id="stormplay">▶ Start storm</button><button id="stormreset">Reset</button><button id="stormplace" title="Then click the map to set where the storm starts">Place storm…</button><span class="mut" id="stormclock">stopped</span></div>
+<div class="row" style="margin-top:6px"><label><input type="checkbox" id="zones" checked> highlight hardest-hit areas</label><label><input type="checkbox" id="track" checked> show forecast path</label></div>
+<div class="row" style="margin-top:6px"><label>Strength<input type="range" id="sintens" min="0.3" max="2" step="0.1" value="1.1"></label><label>Size<input type="range" id="ssize" min="4" max="40" step="1" value="14"></label><label>Speed<input type="range" id="sspeed" min="1" max="8" step="1" value="3"></label><label>Direction<input type="range" id="shdg" min="0" max="359" step="5" value="75"></label></div>
+<div id="mapSlotStorm"></div></section>
+<section class="card"><h2>Risk right now</h2><div id="risk-storm" class="mut">Pick a location on the Map tab to see live risk here.</div></section>
+</div></section>
+
+<!-- ===== PREPARE ===== -->
+<section class="view" id="view-prepare"><div>
+<section class="card"><h2>If the power goes out</h2><div id="rest"></div>
+<details><summary>What if…? (adjust the estimate)</summary>
+<p class="hint">These are advanced controls. Change how much damage or how many repair crews, and the estimate updates.</p>
+<div class="step" id="steps"></div>
+<div class="row"><label for="crews">Repair crews</label><input type="number" id="crews" min="1" max="12" value="3" style="width:64px"><label><input type="checkbox" id="acc"> hard to reach (trees, terrain)</label></div></details></section>
+<section class="card"><h2>Get ready</h2>
+<p class="hint">Tell us what applies to you so your plan fits. We only use what you check here.</p>
+<div class="row"><label><input type="checkbox" id="med"> someone needs power for medical equipment</label><label><input type="checkbox" id="mob"> mobility or accessibility needs</label><label><input type="checkbox" id="crit"> this is a critical facility</label></div><div id="prep"></div></section>
+<details><summary>How this works & what’s behind the numbers</summary>
+<div class="cols"><div><b>What’s real</b><br>Your area’s past storm damage and the equipment that feeds your power. Not the live grid.</div><div><b>What’s estimated</b><br>Risk and repair-time ranges come from past storms. Treat them as rough guides, not promises.</div><div><b>Your part</b><br>Follow the checklists and alerts to stay safe and prepared before and during an outage.</div></div><p class="mut" id="model"></p></details>
+</div></section>
+
+<!-- ===== ALERTS ===== -->
+<section class="view" id="view-alerts"><div>
+<section class="card"><h2>Staying informed</h2><div id="alert"></div>
+<div style="margin-top:8px;padding:10px;border:1px solid var(--bd);border-radius:8px">
+<div class="row" style="justify-content:space-between"><b>🔔 Get notified in your browser</b><span class="mut" id="notifState"></span></div>
+<p class="hint">Turn on alerts and we’ll pop a simple message if the storm heads your way. No account, no sign-up.</p>
+<div class="row"><button id="notifOn">Turn on alerts</button><button id="notifTest">Send a test alert</button><label><input type="checkbox" id="notifStorm" checked> alert me when the storm nears my area</label></div></div>
+<div id="subBox" style="display:none;margin-top:8px;padding:10px;border:1px solid var(--bd);border-radius:8px">
+<b>✉️ Email & text alerts</b>
+<p class="hint">Prefer email or a text? Sign up and we’ll reach you there too.</p>
+<div class="row"><label><input type="checkbox" id="subEmailOn"> Email</label><input id="subEmail" type="email" placeholder="you@example.com" style="flex:1;min-width:140px"></div>
+<div class="row" style="margin-top:6px"><label><input type="checkbox" id="subSmsOn"> Text</label><input id="subPhone" type="tel" placeholder="+1 555 123 4567" style="flex:1;min-width:140px"></div>
+<div class="row" style="margin-top:6px"><button id="subBtn">Sign me up</button><span class="mut" id="subMsg"></span></div></div>
+<details><summary>See example alert messages</summary><div class="row" id="mt"></div><div class="msg" id="msg"></div></details></section>
+</div></section>
+
+<!-- ===== CONCIERGE ===== -->
+<section class="view" id="view-concierge"><div>
 <section class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0">💬 Talk to the concierge</h2><button id="aiToggle" title="Connect Claude for smarter, real conversations" style="font-size:12px;padding:3px 8px">⚙ AI settings</button></div>
 <p class="hint">Worried or unsure? Ask anything — I’ll explain things simply and help you make a plan.</p>
 <div id="aiPanel" style="display:none;margin:8px 0;padding:8px;border:1px solid var(--bd);border-radius:8px">
@@ -65,31 +167,9 @@ details>*:not(summary){margin-bottom:10px}
 <p class="mut" style="margin:6px 0 0">Get a key at console.anthropic.com. Without a key, the concierge still works in a simpler offline mode.</p></div>
 <div id="chat" aria-live="polite"></div>
 <div class="row" id="chips"></div><div class="row" style="margin-top:6px"><input id="q" placeholder="Ask a question…" style="flex:1"><button id="go">Ask</button></div></section>
-</div><div>
-<section class="card"><h2>Your outage risk</h2><div id="risk"></div></section>
-<section class="card"><h2>If the power goes out</h2><div id="rest"></div>
-<details><summary>What if…? (adjust the estimate)</summary>
-<p class="hint">These are advanced controls. Change how much damage or how many repair crews, and the estimate updates.</p>
-<div class="step" id="steps"></div>
-<div class="row"><label for="crews">Repair crews</label><input type="number" id="crews" min="1" max="12" value="3" style="width:64px"><label><input type="checkbox" id="acc"> hard to reach (trees, terrain)</label></div></details></section>
-<section class="card"><h2>Get ready</h2>
-<p class="hint">Tell us what applies to you so your plan fits. We only use what you check here.</p>
-<div class="row"><label><input type="checkbox" id="med"> someone needs power for medical equipment</label><label><input type="checkbox" id="mob"> mobility or accessibility needs</label><label><input type="checkbox" id="crit"> this is a critical facility</label></div><div id="prep"></div></section>
-<section class="card"><h2>Staying informed</h2><div id="alert"></div>
-<div style="margin-top:8px;padding:10px;border:1px solid var(--bd);border-radius:8px">
-<div class="row" style="justify-content:space-between"><b>🔔 Get notified in your browser</b><span class="mut" id="notifState"></span></div>
-<p class="hint">Turn on alerts and we’ll pop a simple message here if the storm heads your way. No account, no sign-up.</p>
-<div class="row"><button id="notifOn">Turn on alerts</button><button id="notifTest">Send a test alert</button><label><input type="checkbox" id="notifStorm" checked> alert me when the storm nears my area</label></div></div>
-<div id="subBox" style="display:none;margin-top:8px;padding:10px;border:1px solid var(--bd);border-radius:8px">
-<b>✉️ Email & text alerts</b>
-<p class="hint">Prefer email or a text? Sign up and we’ll reach you there too.</p>
-<div class="row"><label><input type="checkbox" id="subEmailOn"> Email</label><input id="subEmail" type="email" placeholder="you@example.com" style="flex:1;min-width:140px"></div>
-<div class="row" style="margin-top:6px"><label><input type="checkbox" id="subSmsOn"> Text</label><input id="subPhone" type="tel" placeholder="+1 555 123 4567" style="flex:1;min-width:140px"></div>
-<div class="row" style="margin-top:6px"><button id="subBtn">Sign me up</button><span class="mut" id="subMsg"></span></div></div>
-<details><summary>See example alert messages</summary><div class="row" id="mt"></div><div class="msg" id="msg"></div></details></section>
-<details><summary>How this works & what’s behind the numbers</summary>
-<div class="cols"><div><b>What’s real</b><br>Your area’s past storm damage and the equipment that feeds your power. Not the live grid.</div><div><b>What’s estimated</b><br>Risk and repair-time ranges come from past storms. Treat them as rough guides, not promises.</div><div><b>Your part</b><br>Follow the checklists and alerts to stay safe and prepared before and during an outage.</div></div><p class="mut" id="model"></p></details>
-</div></main>
+</div></section>
+
+</main>
 <script>
 const D=/*DATA*/;const $=s=>document.querySelector(s);
 const SEV=[["Calm — no storm",-3,0],["Light storm",-1.2,2],["Moderate storm",-.5,6],["Feb 2025–like storm",0,12],["Severe storm",.8,24]];
@@ -246,6 +326,8 @@ items.forEach(([n,v])=>{const w=Math.min(48,Math.abs(v)*80);h+=`<div class="mut"
 h+=`<p class="mut">${r[11]<1000?"Storms have caused damage very close to you before.":"No recorded storm damage right next to you."} ${r[4]?"Your power lines run overhead, which storms can hit more easily.":"Your lines are underground, which is usually better protected."}</p>`;
 if(cf==0)h+=`<div class="warn"><b>We’re not very sure here:</b> there isn’t much history near this spot, so this number is a rough guess. For anything important, check your utility’s outage map or call them directly.</div>`;
 $("#risk").innerHTML=h;
+// Mirror a short risk line onto the Storm tab.
+const rs=$("#risk-storm");if(rs)rs.innerHTML=`<p class="big-risk"><b>${PLAIN[k.band]}</b></p><div class="row"><span class="band" style="background:${col(k.band)}">${bn[0]}</span><b>${Math.round(k.p*100)}% chance</b></div>`;
 const ST=steps(r,R);let t=`<p style="font-size:20px;margin:2px 0">Power back in about <b>${fmt(R.lo)} – ${fmt(R.hi)}</b></p><p class="hint">A rough estimate from the time an outage starts — often it’s quicker.</p><p class="mut" style="font-size:12px">Behind the math: ${R.H.toFixed(1)} work-hours × ${R.mult.toFixed(2)} for travel/setup ÷ ${R.cr} crew(s), plus ~${R.wait} h waiting for a crew.</p>`;
 const dom=S.q.pole>=S.q.wire?"Damaged Pole":"Damaged Wire",hs=D.hist[dom];
 if(hs)t+=`<p class="mut" style="font-size:12px">For comparison, in the Feb 2025 storm most similar repairs nearby finished within about ${hs[1]} day(s).</p>`;
@@ -351,5 +433,18 @@ const sent=Object.entries(j.delivered||{}).filter(([k,v])=>v).map(([k])=>k);
 $("#subMsg").textContent=sent.length?("✅ You’re signed up — check your "+sent.join(" and ")+"."):"✅ Saved. (Server is in demo mode, so no real message was sent.)";
 }catch(e){$("#subMsg").textContent="Couldn’t reach the server."}};
 notifState();revealSub();
+// ---- Simple hash router: show one view at a time, highlight its tab ----
+const VIEWS=["map","storm","prepare","alerts","concierge"];
+function showView(v){if(!VIEWS.includes(v))v="map";
+VIEWS.forEach(x=>$("#view-"+x).classList.toggle("active",x===v));
+document.querySelectorAll("nav.tabs a").forEach(a=>a.classList.toggle("active",a.dataset.view===v));
+// The single map element moves into whichever tab needs it (Map or Storm).
+const slot=v==="storm"?$("#mapSlotStorm"):$("#mapSlotMap");const mapEl=$("#map");
+if(slot&&mapEl&&mapEl.parentNode!==slot)slot.appendChild(mapEl);
+// Leaflet must recompute size after its container becomes visible / moves.
+if(v==="map"||v==="storm")setTimeout(()=>map.invalidateSize(),30)}
+function routeFromHash(){showView((location.hash||"#map").slice(1))}
+addEventListener("hashchange",routeFromHash);
 S.i=D.rows.slice(0,40).findIndex(r=>r[12].length>3);S.i=Math.max(0,S.i);$("#pick").value=S.i;upd();
+routeFromHash();
 </script></body></html>
