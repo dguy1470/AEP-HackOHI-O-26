@@ -12,3 +12,7 @@ venv/
 .env
 backend/.env
 *.env.local
+
+# Local database (contains subscriber contact info — do not commit)
+*.db
+backend/concierge.db

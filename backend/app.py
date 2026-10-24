@@ -20,11 +20,13 @@ from email.message import EmailMessage
 from typing import Optional
 
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, EmailStr, Field
+
+import db
 
 try:
     from dotenv import load_dotenv
@@ -56,6 +58,12 @@ TWILIO_FROM = os.getenv("TWILIO_FROM_NUMBER", "")
 # Allowed browser origins. "*" is fine for a local prototype; lock this down in prod.
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",")
 
+# Token guarding admin endpoints (list subscribers, broadcast). Set in .env.
+ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "")
+
+EMAIL_LIVE = bool(SMTP_HOST and SMTP_FROM)
+SMS_LIVE = bool(TWILIO_SID and TWILIO_TOKEN and TWILIO_FROM)
+
 SYSTEM_PROMPT = (
     "You are the AI Outage Concierge for an electric utility, talking with a customer who may be "
     "worried about a storm and losing power. Be warm, calm and reassuring, like a caring human "
@@ -73,6 +81,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+def _startup():
+    db.init_db()
+    log.info("DB ready. email_live=%s sms_live=%s chat=%s",
+             EMAIL_LIVE, SMS_LIVE, bool(ANTHROPIC_API_KEY))
+    if not EMAIL_LIVE:
+        log.info("Email is in DEMO mode — set SMTP_HOST/SMTP_USER/SMTP_PASS in .env to send for real.")
 
 
 # ---- Models ----
@@ -146,36 +163,52 @@ async def reverse(lat: float, lon: float):
     return JSONResponse(r.json())
 
 
-# ---- Notification sign-up ----
+# ---- Sending (records every attempt in the DB) ----
 def send_email(to: str, subject: str, body: str) -> bool:
-    if not SMTP_HOST:
-        log.info("[email disabled] would send to %s: %s", to, subject)
+    """Send a real email via SMTP. Returns True if delivered, False if in demo mode.
+    Raises on a genuine SMTP failure so the caller can surface it."""
+    if not EMAIL_LIVE:
+        log.info("[email demo] would send to %s: %s", to, subject)
+        db.log_send("email", to, subject, body, "demo", "SMTP not configured")
         return False
     msg = EmailMessage()
     msg["From"] = SMTP_FROM
     msg["To"] = to
     msg["Subject"] = subject
     msg.set_content(body)
-    with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as s:
-        s.starttls()
-        if SMTP_USER:
-            s.login(SMTP_USER, SMTP_PASS)
-        s.send_message(msg)
-    return True
+    try:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as s:
+            s.starttls()
+            if SMTP_USER:
+                s.login(SMTP_USER, SMTP_PASS)
+            s.send_message(msg)
+        db.log_send("email", to, subject, body, "sent")
+        log.info("[email sent] %s", to)
+        return True
+    except Exception as e:
+        db.log_send("email", to, subject, body, "error", str(e))
+        log.warning("[email error] %s: %s", to, e)
+        raise
 
 
 def send_sms(to: str, body: str) -> bool:
-    if not (TWILIO_SID and TWILIO_TOKEN and TWILIO_FROM):
-        log.info("[sms disabled] would text %s: %s", to, body)
+    if not SMS_LIVE:
+        log.info("[sms demo] would text %s: %s", to, body)
+        db.log_send("sms", to, "", body, "demo", "Twilio not configured")
         return False
     url = f"https://api.twilio.com/2010-04-01/Accounts/{TWILIO_SID}/Messages.json"
-    with httpx.Client(timeout=15) as client:
-        r = client.post(
-            url,
-            data={"From": TWILIO_FROM, "To": to, "Body": body},
-            auth=(TWILIO_SID, TWILIO_TOKEN),
-        )
-    return r.status_code in (200, 201)
+    try:
+        with httpx.Client(timeout=15) as client:
+            r = client.post(url, data={"From": TWILIO_FROM, "To": to, "Body": body},
+                            auth=(TWILIO_SID, TWILIO_TOKEN))
+        ok = r.status_code in (200, 201)
+        db.log_send("sms", to, "", body, "sent" if ok else "error",
+                    "" if ok else f"HTTP {r.status_code}: {r.text[:200]}")
+        return ok
+    except Exception as e:
+        db.log_send("sms", to, "", body, "error", str(e))
+        log.warning("[sms error] %s: %s", to, e)
+        raise
 
 
 @app.post("/api/subscribe")
@@ -187,18 +220,96 @@ async def subscribe(sub: Subscription):
         + (f" for {sub.area}" if sub.area else "")
         + ". We'll let you know before and during any outage. Reply STOP to opt out."
     )
+    if "email" in sub.channels and not sub.email:
+        raise HTTPException(400, "Email channel selected but no email provided.")
+    if "sms" in sub.channels and not sub.phone:
+        raise HTTPException(400, "SMS channel selected but no phone provided.")
+    # Persist the subscriber first, so they're saved even if the welcome message fails.
+    db.upsert_subscriber(sub.email, sub.phone, sub.channels, sub.area)
     results = {}
     if "email" in sub.channels:
-        if not sub.email:
-            raise HTTPException(400, "Email channel selected but no email provided.")
-        results["email"] = send_email(sub.email, "Outage alerts are on", welcome)
+        try:
+            results["email"] = send_email(sub.email, "Outage alerts are on", welcome)
+        except Exception as e:
+            results["email"] = False
+            results["email_error"] = str(e)
     if "sms" in sub.channels:
-        if not sub.phone:
-            raise HTTPException(400, "SMS channel selected but no phone provided.")
-        results["sms"] = send_sms(sub.phone, "⚡ " + welcome)
-    # "delivered" reflects whether a real provider was configured and accepted it.
-    return {"ok": True, "delivered": results,
+        try:
+            results["sms"] = send_sms(sub.phone, "⚡ " + welcome)
+        except Exception as e:
+            results["sms"] = False
+            results["sms_error"] = str(e)
+    return {"ok": True, "saved": True, "delivered": results,
             "note": "Channels showing false are not configured on this server (demo mode)."}
+
+
+@app.post("/api/unsubscribe")
+async def unsubscribe(sub: Subscription):
+    db.deactivate(email=sub.email, phone=sub.phone)
+    return {"ok": True}
+
+
+# ---- Admin (guarded by ADMIN_TOKEN) ----
+def _require_admin(x_admin_token: Optional[str]):
+    if not ADMIN_TOKEN:
+        raise HTTPException(403, "Admin endpoints are disabled (set ADMIN_TOKEN).")
+    if x_admin_token != ADMIN_TOKEN:
+        raise HTTPException(401, "Bad admin token.")
+
+
+@app.get("/api/subscribers")
+async def subscribers(x_admin_token: Optional[str] = Header(default=None)):
+    _require_admin(x_admin_token)
+    return {"subscribers": db.list_subscribers()}
+
+
+@app.get("/api/sent-log")
+async def sent_log(x_admin_token: Optional[str] = Header(default=None)):
+    _require_admin(x_admin_token)
+    return {"log": db.recent_log()}
+
+
+class TestEmail(BaseModel):
+    to: EmailStr
+    subject: str = "Outage Concierge test"
+    body: str = "This is a test from your Outage Concierge server. If you got this, email is working."
+
+
+@app.post("/api/send-test")
+async def send_test(req: TestEmail, x_admin_token: Optional[str] = Header(default=None)):
+    """Send a real test email to confirm SMTP is live. Requires the admin token."""
+    _require_admin(x_admin_token)
+    if not EMAIL_LIVE:
+        raise HTTPException(503, "Email is not configured (SMTP_* missing), so this would only be a demo.")
+    try:
+        send_email(req.to, req.subject, req.body)
+    except Exception as e:
+        raise HTTPException(502, f"Send failed: {e}")
+    return {"ok": True, "sent_to": req.to}
+
+
+class Broadcast(BaseModel):
+    subject: str = "Outage alert"
+    message: str
+
+
+@app.post("/api/broadcast")
+async def broadcast(b: Broadcast, x_admin_token: Optional[str] = Header(default=None)):
+    """Send a message to every active subscriber on their chosen channels."""
+    _require_admin(x_admin_token)
+    sent = {"email": 0, "sms": 0, "errors": 0}
+    for s in db.list_subscribers():
+        chans = (s["channels"] or "").split(",")
+        try:
+            if "email" in chans and s["email"]:
+                if send_email(s["email"], b.subject, b.message):
+                    sent["email"] += 1
+            if "sms" in chans and s["phone"]:
+                if send_sms(s["phone"], b.message):
+                    sent["sms"] += 1
+        except Exception:
+            sent["errors"] += 1
+    return {"ok": True, "sent": sent}
 
 
 @app.get("/api/health")
@@ -206,8 +317,8 @@ async def health():
     return {
         "ok": True,
         "chat": bool(ANTHROPIC_API_KEY),
-        "email": bool(SMTP_HOST),
-        "sms": bool(TWILIO_SID and TWILIO_TOKEN and TWILIO_FROM),
+        "email": EMAIL_LIVE,
+        "sms": SMS_LIVE,
     }
 
 
