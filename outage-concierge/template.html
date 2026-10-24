@@ -105,6 +105,22 @@ const storm={lat:ctr[0],lon:B[0]-0.05,hdg:75,spd:3,rad:14,intens:1.1,t:0,on:fals
 let stormTimer=null;
 // Degrees of lon per km varies with latitude; approximate for this region.
 const KMLAT=111.0,KMLON=111.0*Math.cos(ctr[0]*Math.PI/180);
+// --- Spatial grid index: bucket every node by cell so storm scans and nearest-node
+// lookups touch only nearby buckets instead of all 117k rows. Built once. ---
+const GRID=0.02;// ~2 km cells
+const gKey=(lon,lat)=>((lat-B[2])/GRID|0)+"|"+((lon-B[0])/GRID|0);
+const gridIdx=new Map();
+function buildGrid(){for(let i=0;i<D.rows.length;i++){const r=D.rows[i],k=gKey(r[1],r[2]);let b=gridIdx.get(k);if(!b){b=[];gridIdx.set(k,b)}b.push(i)}}
+// Node indices whose cell overlaps a lon/lat box. Scans only relevant buckets.
+function idxInBox(lat,lon,dLat,dLon){const out=[];const gy0=(lat-dLat-B[2])/GRID|0,gy1=(lat+dLat-B[2])/GRID|0,gx0=(lon-dLon-B[0])/GRID|0,gx1=(lon+dLon-B[0])/GRID|0;
+for(let gy=gy0;gy<=gy1;gy++)for(let gx=gx0;gx<=gx1;gx++){const b=gridIdx.get(gy+"|"+gx);if(b)for(const i of b)out.push(i)}return out}
+// Nearest node to a point: expand grid rings outward; once found at ring R, scan one more ring
+// (a closer node can sit just across a cell boundary) then stop.
+function nearestNode(lat,lon){const cy=(lat-B[2])/GRID|0,cx=(lon-B[0])/GRID|0;let bi=-1,bd=1e9,foundAt=-1;
+for(let ring=0;ring<300;ring++){
+for(let gy=cy-ring;gy<=cy+ring;gy++)for(let gx=cx-ring;gx<=cx+ring;gx++){if(Math.max(Math.abs(gy-cy),Math.abs(gx-cx))!==ring)continue;const b=gridIdx.get(gy+"|"+gx);if(!b)continue;for(const i of b){const r=D.rows[i],d=(r[2]-lat)**2+(r[1]-lon)**2;if(d<bd){bd=d;bi=i}}}
+if(bi>=0&&foundAt<0)foundAt=ring;if(foundAt>=0&&ring>=foundAt+1)break}
+return bi>=0?bi:0}
 // Extra logit for a node, based on proximity to the moving storm eye (0 outside the radius).
 function stormBoost(r){if(!storm.on)return 0;const d=distKm(storm.lat,storm.lon,r[2],r[1]);if(d>=storm.rad)return 0;return storm.intens*(1-d/storm.rad)*2.6}
 // Haversine distance in km between two [lon,lat]-style rows.
@@ -115,14 +131,13 @@ const CN=["Low","Medium","High"];
 function fmt(h){return h<36?Math.round(h)+" hours":(h/24).toFixed(1)+" days"}
 // Build one circle marker per premise once; recolor them on each draw().
 function buildMarkers(){D.rows.forEach((r,i)=>{const m=L.circleMarker([r[2],r[1]],{renderer:cvRenderer,radius:5,weight:1,color:"#0003",fillOpacity:.8});m.on("click",()=>{S.i=i;$("#pick").value=i;upd();map.panTo([r[2],r[1]])});m.bindTooltip("P-"+r[0]);m.addTo(map);markers.push(m)})}
-function draw(){const cs=BANDS.map((_,n)=>col(n));
-D.rows.forEach((r,i)=>{markers[i].setStyle({fillColor:cs[risk(r,S.sev).band]})});
+function draw(){if(storm.on)recolor();else recolorAll();
 // Highlight the selected premise.
 const r=D.rows[S.i];if(selMarker)selMarker.remove();selMarker=L.circleMarker([r[2],r[1]],{radius:10,weight:3,color:getComputedStyle(document.body).color,fill:false}).addTo(map);
 // Past-damage overlay toggles with the checkbox.
 if($("#dm").checked){dmgLayer.clearLayers();D.dmg.forEach(d=>L.circleMarker([d[1],d[0]],{radius:2,weight:0,color:"#788",fillColor:"#788",fillOpacity:.6}).addTo(dmgLayer));dmgLayer.addTo(map)}else{dmgLayer.remove()}}
 // Given a lat/lon, drop an address pin, snap to the nearest premise, and report distance.
-function snapTo(lat,lon,label){let bi=0,bd=1e9;D.rows.forEach((r,i)=>{const d=distKm(lat,lon,r[2],r[1]);if(d<bd){bd=d;bi=i}});
+function snapTo(lat,lon,label){const bi=nearestNode(lat,lon),bd=distKm(lat,lon,D.rows[bi][2],D.rows[bi][1]);
 S.i=bi;$("#pick").value=bi;upd();
 if(addrMarker)addrMarker.remove();addrMarker=L.marker([lat,lon],{title:label||"Your location"}).addTo(map);
 const r=D.rows[bi];map.fitBounds([[lat,lon],[r[2],r[1]]],{padding:[40,40],maxZoom:15});
@@ -142,21 +157,23 @@ if(js&&js.display_name)$("#addr").value=js.display_name;
 snapTo(lat,lon,label);
 }catch(err){snapTo(lat,lon,`${lat.toFixed(4)}, ${lon.toFixed(4)}`)}}
 map.on("click",e=>{if(storm.place){storm.lat=e.latlng.lat;storm.lon=e.latlng.lng;storm.t=0;storm.place=false;$("#stormplace").classList.remove("on");drawStorm();if(storm.on)recolor();else draw();return}clickToAddress(e.latlng.lat,e.latlng.lng)});
-buildMarkers();
+buildMarkers();buildGrid();
 $("#findbtn").onclick=findNearest;$("#addr").onkeydown=e=>{if(e.key=="Enter")findNearest()};
 
 // ---- Storm engine: movement, forecast track, affected-zone grid ----
 let boosted=new Set();// indices currently under storm influence, so we only recolor what changed
 // Indices within the storm radius. Cheap lat/lon box pre-filter avoids 117k haversines.
 function nearStorm(){const out=[];if(!storm.on)return out;const dLat=storm.rad/KMLAT*1.05,dLon=storm.rad/KMLON*1.05;
-for(let i=0;i<D.rows.length;i++){const r=D.rows[i];if(Math.abs(r[2]-storm.lat)>dLat||Math.abs(r[1]-storm.lon)>dLon)continue;if(distKm(storm.lat,storm.lon,r[2],r[1])<storm.rad)out.push(i)}return out}
+for(const i of idxInBox(storm.lat,storm.lon,dLat,dLon)){const r=D.rows[i];if(distKm(storm.lat,storm.lon,r[2],r[1])<storm.rad)out.push(i)}return out}
 // Recolor only the nodes whose risk the storm changes this tick (previous ∪ current influence set).
-function recolor(near){const cs=BANDS.map((_,n)=>col(n));const next=new Set(near!==undefined?near:nearStorm());
+function recolor(near){ensureBase();const cs=BANDS.map((_,n)=>col(n));const next=new Set(near!==undefined?near:nearStorm());
 const touch=new Set([...boosted,...next]);
-touch.forEach(i=>markers[i].setStyle({fillColor:cs[risk(D.rows[i],S.sev).band]}));
+touch.forEach(i=>{const b=next.has(i)?risk(D.rows[i],S.sev).band:baseBand[i];if(shownBand[i]!==b){markers[i].setStyle({fillColor:cs[b]});shownBand[i]=b}});
 boosted=next}
-// Full recolor (used when the base scenario changes, not per tick).
-function recolorAll(){const cs=BANDS.map((_,n)=>col(n));for(let i=0;i<D.rows.length;i++)markers[i].setStyle({fillColor:cs[risk(D.rows[i],S.sev).band]})}
+// Band currently painted on each marker (255 = not yet painted), so we only restyle on change.
+let shownBand=new Uint8Array(D.rows.length).fill(255);
+// Full recolor to the storm-off base. Uses precomputed bands and skips unchanged markers.
+function recolorAll(){ensureBase();const cs=BANDS.map((_,n)=>col(n));for(let i=0;i<D.rows.length;i++){const b=baseBand[i];if(shownBand[i]!==b){markers[i].setStyle({fillColor:cs[b]});shownBand[i]=b}}}
 // Advance the storm eye one step along its heading.
 function stepStorm(){const rad=storm.hdg*Math.PI/180,dKm=storm.spd;storm.lat+=Math.cos(rad)*dKm/KMLAT;storm.lon+=Math.sin(rad)*dKm/KMLON;storm.t++}
 // Project future eye positions from the current state (does not mutate storm).
@@ -170,9 +187,13 @@ if($("#track").checked){const fc=forecast(10);
 L.polyline([[storm.lat,storm.lon],...fc],{color:"#c0262d",weight:2,dashArray:"6 6",opacity:.8}).addTo(trackLayer);
 fc.forEach((p,i)=>L.circle(p,{radius:(storm.rad+i*2.2)*1000,color:"#c0262d",weight:1,opacity:.25,fill:false}).addTo(trackLayer));}}
 const NX=26,NY=20,gw=(B[1]-B[0])/NX,gh=(B[3]-B[2])/NY;
-// Base count of inherently Elevated/High nodes per grid cell (storm off). Computed once.
+// Precomputed storm-off risk band for every node under the current scenario.
+// One pass per scenario; downstream code reads this array instead of recomputing risk().
+let baseBand=new Uint8Array(D.rows.length),baseSev=-1;
+function computeBase(){for(let i=0;i<D.rows.length;i++){const r=D.rows[i];let l=D.b+SEV[S.sev][1];l+=D.coef[0]*(r[5]-D.mu[0])/D.sd[0]+D.coef[1]*(r[6]-D.mu[1])/D.sd[1]+D.coef[2]*(r[4]-D.mu[2])/D.sd[2]+D.coef[3]*(r[7]-D.mu[3])/D.sd[3]+D.coef[4]*(r[8]-D.mu[4])/D.sd[4];const p=1/(1+Math.exp(-l));baseBand[i]=BANDS.findIndex(q=>p<q[1])}baseSev=S.sev}
+function ensureBase(){if(baseSev!==S.sev)computeBase()}
 let baseCell=null;
-function buildBaseCell(){baseCell={};for(const r of D.rows){const x=[r[5],r[6],r[4],r[7],r[8]];let l=D.b+SEV[S.sev][1];for(let k=0;k<5;k++)l+=D.coef[k]*(x[k]-D.mu[k])/D.sd[k];const p=1/(1+Math.exp(-l)),b=BANDS.findIndex(q=>p<q[1]);if(b<2)continue;const gx=Math.floor((r[1]-B[0])/gw),gy=Math.floor((r[2]-B[2])/gh);baseCell[gx+","+gy]=(baseCell[gx+","+gy]||0)+(b===3?2:1)}}
+function buildBaseCell(){ensureBase();baseCell={};for(let i=0;i<D.rows.length;i++){const b=baseBand[i];if(b<2)continue;const r=D.rows[i],gx=Math.floor((r[1]-B[0])/gw),gy=Math.floor((r[2]-B[2])/gh);baseCell[gx+","+gy]=(baseCell[gx+","+gy]||0)+(b===3?2:1)}}
 // Shade grid cells with many at-risk premises. Base layer + live storm boost near the eye.
 function drawZones(near){zoneLayer.clearLayers();if(!$("#zones").checked)return;if(!baseCell)buildBaseCell();
 const cell=Object.assign({},baseCell);
@@ -192,10 +213,15 @@ function stopStorm(){clearInterval(stormTimer);stormTimer=null;$("#stormplay").t
 $("#stormplay").onclick=()=>{if(stormTimer)stopStorm();else startStorm()};
 $("#stormreset").onclick=()=>{stopStorm();storm.on=false;storm.t=0;storm.lat=ctr[0];storm.lon=B[0]-0.05;stormLayer.clearLayers();trackLayer.clearLayers();zoneLayer.clearLayers();$("#stormclock").textContent="stopped";draw()};
 $("#stormplace").onclick=()=>{storm.place=!storm.place;$("#stormplace").classList.toggle("on",storm.place);$("#geomsg").textContent=storm.place?"Click the map to set the storm’s starting point.":""};
-$("#sintens").oninput=e=>{storm.intens=+e.target.value;if(storm.on){drawStorm();drawZones();recolor();upd()}};
-$("#ssize").oninput=e=>{storm.rad=+e.target.value;if(storm.on){drawStorm();drawZones();recolor();upd()}};
-$("#sspeed").oninput=e=>{storm.spd=+e.target.value;if(storm.on)drawStorm()};
-$("#shdg").oninput=e=>{storm.hdg=+e.target.value;if(storm.on)drawStorm()};
+// Coalesce rapid slider input to one update per animation frame, keeping drags smooth.
+function rafThrottle(fn){let q=false;return()=>{if(q)return;q=true;requestAnimationFrame(()=>{q=false;fn()})}}
+const heavyStormUpdate=rafThrottle(()=>{if(storm.on){const near=nearStorm();drawZones(near);recolor(near);upd()}});
+// Strength/Size change the affected nodes, so they need the (throttled) heavy update.
+$("#sintens").oninput=e=>{storm.intens=+e.target.value;if(storm.on){drawStorm();heavyStormUpdate()}};
+$("#ssize").oninput=e=>{storm.rad=+e.target.value;if(storm.on){drawStorm();heavyStormUpdate()}};
+// Speed/Direction only change movement & the forecast cone — cheap, redraw immediately.
+$("#sspeed").oninput=e=>{storm.spd=+e.target.value;if(storm.on||storm.t)drawStorm()};
+$("#shdg").oninput=e=>{storm.hdg=+e.target.value;if(storm.on||storm.t)drawStorm()};
 $("#zones").oninput=()=>drawZones();$("#track").oninput=()=>{if(storm.on||storm.t)drawStorm()};
 function needs(){return{med:$("#med").checked,mob:$("#mob").checked,crit:$("#crit").checked}}
 function rest(r){const H=U.reduce((s,u)=>s+S.q[u[0]]*u[2],0),cr=Math.max(1,+$("#crews").value||1),ac=$("#acc").checked;
@@ -233,7 +259,7 @@ $("#model").textContent=`Under the hood: a statistical model trained on ${D.n.to
 const C=document.createDocumentFragment();D.rows.forEach((r,i)=>{if(i<300||r[10]){const o=document.createElement("option");o.value=i;o.textContent=`P-${r[0]} · circuit C-${D.circ[r[3]][0]}${r[10]?" · declared life-support":""}`;C.appendChild(o)}});$("#pick").appendChild(C);
 $("#sev").innerHTML=SEV.map((s,i)=>`<option value="${i}">${s[0]}</option>`).join("");$("#sev").value=3;
 $("#steps").innerHTML=U.map(u=>`<div>${u[1]}<input type="number" min="0" max="20" id="q_${u[0]}" value="${S.q[u[0]]}"></div>`).join("");
-$("#pick").onchange=e=>{S.i=+e.target.value;upd()};$("#sev").onchange=e=>{S.sev=+e.target.value;baseCell=null;recolorAll();if(storm.on||storm.t)drawZones();upd()};
+$("#pick").onchange=e=>{S.i=+e.target.value;upd()};$("#sev").onchange=e=>{S.sev=+e.target.value;baseCell=null;if(storm.on){recolorAll();recolor()}else recolorAll();if(storm.on||storm.t)drawZones();upd()};
 U.forEach(u=>$("#q_"+u[0]).oninput=e=>{S.q[u[0]]=Math.max(0,+e.target.value||0);upd()});["crews","acc","med","mob","crit","dm"].forEach(i=>$("#"+i).oninput=upd);addEventListener("resize",()=>map.invalidateSize());
 const QS=["Am I going to lose power?","How long might it be out?","What should I do to get ready?","I’m worried — can you help?"];
 $("#chips").innerHTML=QS.map(q=>`<button>${q}</button>`).join("");
