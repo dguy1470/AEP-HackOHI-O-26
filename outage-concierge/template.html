@@ -36,6 +36,10 @@ ul{margin:4px 0;padding-left:20px}#chat{max-height:200px;overflow:auto}#chat p{m
 <div id="map" aria-label="Map of anonymized premises colored by outage risk"></div>
 <div class="mut" id="geomsg" style="margin-top:6px"></div>
 <div class="mut lg">Risk:<span style="background:var(--lo)"></span>Low<span style="background:var(--md)"></span>Moderate<span style="background:var(--el)"></span>Elevated<span style="background:var(--hi)"></span>High<span style="background:none;border:1px solid var(--tx)"></span>Selected</div>
+<div class="card" style="margin:8px 0 0;padding:10px"><div class="row" style="justify-content:space-between"><b>🌪 Live storm simulation</b><span class="mut" id="stormclock">stopped</span></div>
+<div class="row" style="margin-top:6px"><button id="stormplay">▶ Start storm</button><button id="stormreset">Reset</button><button id="stormplace" title="Then click the map to set the storm's starting point">Place storm…</button><label><input type="checkbox" id="zones" checked> affected zones</label><label><input type="checkbox" id="track" checked> forecast track</label></div>
+<div class="row" style="margin-top:6px"><label>Intensity<input type="range" id="sintens" min="0.3" max="2" step="0.1" value="1.1"></label><label>Speed<input type="range" id="sspeed" min="1" max="8" step="1" value="3"></label><label>Heading<input type="range" id="shdg" min="0" max="359" step="5" value="75"></label></div>
+<p class="mut" style="margin:4px 0 0">Simulated forecast, not live weather. The storm sweeps the service area and updates each node’s risk in real time as it approaches.</p></div>
 <div class="row"><label for="pick">Premise</label><select id="pick"></select><label><input type="checkbox" id="dm"> show past damage</label></div>
 <label for="sev">Storm scenario</label><select id="sev"></select>
 <p class="mut" style="margin-top:8px">Locations are rounded to ~400 m, IDs are hashed, and no addresses, names or facility locations are shown.</p></section>
@@ -64,9 +68,18 @@ const map=L.map("map",{zoomControl:true}).fitBounds([[B[2],B[0]],[B[3],B[1]]]);
 L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap contributors"}).addTo(map);
 const cvRenderer=L.canvas({padding:.5});// canvas renderer scales to tens of thousands of points
 const dmgLayer=L.layerGroup();let markers=[],selMarker=null,addrMarker=null;
+// --- Storm simulation state & layers ---
+const stormLayer=L.layerGroup().addTo(map),zoneLayer=L.layerGroup().addTo(map),trackLayer=L.layerGroup().addTo(map);
+const ctr=[(B[2]+B[3])/2,(B[0]+B[1])/2];
+const storm={lat:ctr[0],lon:B[0]-0.05,hdg:75,spd:3,rad:14,intens:1.1,t:0,on:false,place:false};
+let stormTimer=null;
+// Degrees of lon per km varies with latitude; approximate for this region.
+const KMLAT=111.0,KMLON=111.0*Math.cos(ctr[0]*Math.PI/180);
+// Extra logit for a node, based on proximity to the moving storm eye (0 outside the radius).
+function stormBoost(r){if(!storm.on)return 0;const d=distKm(storm.lat,storm.lon,r[2],r[1]);if(d>=storm.rad)return 0;return storm.intens*(1-d/storm.rad)*2.6}
 // Haversine distance in km between two [lon,lat]-style rows.
 function distKm(lat1,lon1,lat2,lon2){const R=6371,t=x=>x*Math.PI/180,dLat=t(lat2-lat1),dLon=t(lon2-lon1),a=Math.sin(dLat/2)**2+Math.cos(t(lat1))*Math.cos(t(lat2))*Math.sin(dLon/2)**2;return 2*R*Math.asin(Math.sqrt(a))}
-function risk(r,sev){const x=[r[5],r[6],r[4],r[7],r[8]];let l=D.b+SEV[sev][1];const c=x.map((v,k)=>D.coef[k]*(v-D.mu[k])/D.sd[k]);c.forEach(v=>l+=v);const p=1/(1+Math.exp(-l));return{p,c,band:BANDS.findIndex(b=>p<b[1])}}
+function risk(r,sev){const x=[r[5],r[6],r[4],r[7],r[8]];let l=D.b+SEV[sev][1]+stormBoost(r);const c=x.map((v,k)=>D.coef[k]*(v-D.mu[k])/D.sd[k]);c.forEach(v=>l+=v);const p=1/(1+Math.exp(-l));return{p,c,band:BANDS.findIndex(b=>p<b[1])}}
 function conf(r){const n=D.circ[r[3]][2],d=r[11];return n>=100&&d<800?2:n>=20&&d<2500?1:0}
 const CN=["Low","Medium","High"];
 function fmt(h){return h<36?Math.round(h)+" hours":(h/24).toFixed(1)+" days"}
@@ -98,9 +111,61 @@ const label=js&&js.display_name?js.display_name.split(",").slice(0,3).join(","):
 if(js&&js.display_name)$("#addr").value=js.display_name;
 snapTo(lat,lon,label);
 }catch(err){snapTo(lat,lon,`${lat.toFixed(4)}, ${lon.toFixed(4)}`)}}
-map.on("click",e=>clickToAddress(e.latlng.lat,e.latlng.lng));
+map.on("click",e=>{if(storm.place){storm.lat=e.latlng.lat;storm.lon=e.latlng.lng;storm.t=0;storm.place=false;$("#stormplace").classList.remove("on");drawStorm();if(storm.on)recolor();else draw();return}clickToAddress(e.latlng.lat,e.latlng.lng)});
 buildMarkers();
 $("#findbtn").onclick=findNearest;$("#addr").onkeydown=e=>{if(e.key=="Enter")findNearest()};
+
+// ---- Storm engine: movement, forecast track, affected-zone grid ----
+let boosted=new Set();// indices currently under storm influence, so we only recolor what changed
+// Indices within the storm radius. Cheap lat/lon box pre-filter avoids 117k haversines.
+function nearStorm(){const out=[];if(!storm.on)return out;const dLat=storm.rad/KMLAT*1.05,dLon=storm.rad/KMLON*1.05;
+for(let i=0;i<D.rows.length;i++){const r=D.rows[i];if(Math.abs(r[2]-storm.lat)>dLat||Math.abs(r[1]-storm.lon)>dLon)continue;if(distKm(storm.lat,storm.lon,r[2],r[1])<storm.rad)out.push(i)}return out}
+// Recolor only the nodes whose risk the storm changes this tick (previous ∪ current influence set).
+function recolor(near){const cs=BANDS.map((_,n)=>col(n));const next=new Set(near!==undefined?near:nearStorm());
+const touch=new Set([...boosted,...next]);
+touch.forEach(i=>markers[i].setStyle({fillColor:cs[risk(D.rows[i],S.sev).band]}));
+boosted=next}
+// Full recolor (used when the base scenario changes, not per tick).
+function recolorAll(){const cs=BANDS.map((_,n)=>col(n));for(let i=0;i<D.rows.length;i++)markers[i].setStyle({fillColor:cs[risk(D.rows[i],S.sev).band]})}
+// Advance the storm eye one step along its heading.
+function stepStorm(){const rad=storm.hdg*Math.PI/180,dKm=storm.spd;storm.lat+=Math.cos(rad)*dKm/KMLAT;storm.lon+=Math.sin(rad)*dKm/KMLON;storm.t++}
+// Project future eye positions from the current state (does not mutate storm).
+function forecast(n){const pts=[];let la=storm.lat,lo=storm.lon;const rad=storm.hdg*Math.PI/180;for(let i=0;i<n;i++){la+=Math.cos(rad)*storm.spd/KMLAT;lo+=Math.sin(rad)*storm.spd/KMLON;pts.push([la,lo])}return pts}
+// Draw the storm eye, current impact radius, forecast track and widening uncertainty cone.
+function drawStorm(){stormLayer.clearLayers();trackLayer.clearLayers();
+// eye + impact radius
+L.circle([storm.lat,storm.lon],{radius:storm.rad*1000,color:"#c0262d",weight:2,fillColor:"#c0262d",fillOpacity:.12}).addTo(stormLayer);
+L.circleMarker([storm.lat,storm.lon],{radius:6,color:"#fff",weight:2,fillColor:"#c0262d",fillOpacity:1}).addTo(stormLayer).bindTooltip("Storm center");
+if($("#track").checked){const fc=forecast(10);
+L.polyline([[storm.lat,storm.lon],...fc],{color:"#c0262d",weight:2,dashArray:"6 6",opacity:.8}).addTo(trackLayer);
+fc.forEach((p,i)=>L.circle(p,{radius:(storm.rad+i*2.2)*1000,color:"#c0262d",weight:1,opacity:.25,fill:false}).addTo(trackLayer));}}
+const NX=26,NY=20,gw=(B[1]-B[0])/NX,gh=(B[3]-B[2])/NY;
+// Base count of inherently Elevated/High nodes per grid cell (storm off). Computed once.
+let baseCell=null;
+function buildBaseCell(){baseCell={};for(const r of D.rows){const x=[r[5],r[6],r[4],r[7],r[8]];let l=D.b+SEV[S.sev][1];for(let k=0;k<5;k++)l+=D.coef[k]*(x[k]-D.mu[k])/D.sd[k];const p=1/(1+Math.exp(-l)),b=BANDS.findIndex(q=>p<q[1]);if(b<2)continue;const gx=Math.floor((r[1]-B[0])/gw),gy=Math.floor((r[2]-B[2])/gh);baseCell[gx+","+gy]=(baseCell[gx+","+gy]||0)+(b===3?2:1)}}
+// Shade grid cells with many at-risk premises. Base layer + live storm boost near the eye.
+function drawZones(near){zoneLayer.clearLayers();if(!$("#zones").checked)return;if(!baseCell)buildBaseCell();
+const cell=Object.assign({},baseCell);
+// add the storm's live influence: only nodes near the eye, bump their cells
+if(storm.on){const idx=near!==undefined?near:nearStorm();for(const i of idx){const r=D.rows[i],b=risk(r,S.sev).band;if(b<2)continue;const gx=Math.floor((r[1]-B[0])/gw),gy=Math.floor((r[2]-B[2])/gh),key=gx+","+gy;cell[key]=(cell[key]||0)+(b===3?2:1)}}
+let mx=1;for(const k in cell)mx=Math.max(mx,cell[k]);
+for(const k in cell){if(cell[k]<3)continue;const[gx,gy]=k.split(",").map(Number),v=cell[k]/mx;
+const s=[B[2]+gy*gh,B[0]+gx*gw],e=[B[2]+(gy+1)*gh,B[0]+(gx+1)*gw];
+L.rectangle([s,e],{stroke:false,fillColor:v>.66?"#c0262d":v>.33?"#e07b00":"#c99700",fillOpacity:.18+.32*v}).addTo(zoneLayer)}}
+function stormFrame(){stepStorm();
+// wrap the storm back to the west edge once it exits the east side, so it loops.
+if(storm.lon>B[1]+0.1){storm.lon=B[0]-0.05;storm.lat=ctr[0]+(Math.random()-.5)*0.2;storm.t=0}
+const near=nearStorm();drawStorm();drawZones(near);recolor(near);upd();
+$("#stormclock").textContent="t+"+storm.t+" steps · eye "+storm.lat.toFixed(3)+", "+storm.lon.toFixed(3)}
+function startStorm(){if(stormTimer)return;storm.on=true;$("#stormplay").textContent="⏸ Pause storm";$("#stormplay").classList.add("on");stormTimer=setInterval(stormFrame,650)}
+function stopStorm(){clearInterval(stormTimer);stormTimer=null;$("#stormplay").textContent="▶ Start storm";$("#stormplay").classList.remove("on")}
+$("#stormplay").onclick=()=>{if(stormTimer)stopStorm();else startStorm()};
+$("#stormreset").onclick=()=>{stopStorm();storm.on=false;storm.t=0;storm.lat=ctr[0];storm.lon=B[0]-0.05;stormLayer.clearLayers();trackLayer.clearLayers();zoneLayer.clearLayers();$("#stormclock").textContent="stopped";draw()};
+$("#stormplace").onclick=()=>{storm.place=!storm.place;$("#stormplace").classList.toggle("on",storm.place);$("#geomsg").textContent=storm.place?"Click the map to set the storm’s starting point.":""};
+$("#sintens").oninput=e=>{storm.intens=+e.target.value;if(storm.on){drawStorm();drawZones();recolor();upd()}};
+$("#sspeed").oninput=e=>{storm.spd=+e.target.value;if(storm.on)drawStorm()};
+$("#shdg").oninput=e=>{storm.hdg=+e.target.value;if(storm.on)drawStorm()};
+$("#zones").oninput=()=>drawZones();$("#track").oninput=()=>{if(storm.on||storm.t)drawStorm()};
 function needs(){return{med:$("#med").checked,mob:$("#mob").checked,crit:$("#crit").checked}}
 function rest(r){const H=U.reduce((s,u)=>s+S.q[u[0]]*u[2],0),cr=Math.max(1,+$("#crews").value||1),ac=$("#acc").checked;
 const mult=1+.30+.40+(ac?.25:0),work=H*mult/cr,wait=SEV[S.sev][2];return{H,cr,mult,work,wait,lo:wait*.6+work*.8,hi:wait*1.6+work*1.6*(ac?1.2:1)}}
@@ -108,8 +173,10 @@ function steps(r,R){const ch=r[12],T=ch.find(c=>c[0]=="T"),Fs=ch.filter(c=>c[0]=
 const plan=[["rec","Recloser repaired",Rs.length?Rs[Rs.length-1][1]:null],["fuse","Fuse / switch bank repaired",Fs.length?Fs[Fs.length-1][1]:null],["pole","Poles replaced",Fs.length?Fs[0][1]:null],["wire","Wire spans re-strung",Fs.length?Fs[0][1]:null],["xfmr","Transformer replaced",T?T[1]:null]];
 let t=R.wait,out=[];plan.forEach(p=>{const u=U.find(x=>x[0]==p[0]);if(S.q[p[0]]>0){t+=S.q[p[0]]*u[2]*R.mult/R.cr;out.push([p[1],t,p[2]])}});return out}
 function upd(){const r=D.rows[S.i],k=risk(r,S.sev),cf=conf(r),nd=needs(),R=rest(r),bn=BANDS[k.band],cc=D.circ[r[3]];
-let h=`<div class="row"><span class="band" style="background:${col(k.band)}">${bn[0]} risk</span><b>${Math.round(k.p*100)}%</b><span class="mut">chance of an outage in this scenario · confidence <b>${CN[cf]}</b></span></div>
-<h3>What drives it</h3>`;const items=k.c.map((v,i)=>[NM[i],v]).concat([["Storm severity ("+SEV[S.sev][0]+")",SEV[S.sev][1]]]).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).slice(0,5);
+let h=`<div class="row"><span class="band" style="background:${col(k.band)}">${bn[0]} risk</span><b>${Math.round(k.p*100)}%</b><span class="mut">chance of an outage in this scenario · confidence <b>${CN[cf]}</b></span></div>`;
+if(storm.on){const sd=distKm(storm.lat,storm.lon,r[2],r[1]);const near=forecast(10).some(p=>distKm(p[0],p[1],r[2],r[1])<storm.rad);
+h+=`<div class="warn"><b>🌪 Live storm:</b> eye is <b>${sd<1?Math.round(sd*1000)+" m":sd.toFixed(1)+" km"}</b> from this location${sd<storm.rad?" — you are inside the impact zone now":near?" and forecast to pass within range":""}. Risk above reflects the storm’s current position and updates as it moves.</div>`}
+h+=`<h3>What drives it</h3>`;const sb=storm.on?stormBoost(r):0;const items=k.c.map((v,i)=>[NM[i],v]).concat([["Storm severity ("+SEV[S.sev][0]+")",SEV[S.sev][1]]]).concat(sb>0?[["Approaching storm (live)",sb]]:[]).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).slice(0,5);
 items.forEach(([n,v])=>{const w=Math.min(48,Math.abs(v)*80);h+=`<div class="mut">${v>=0?"↑ raises":"↓ lowers"} risk · ${n}</div><div class="bar"><i style="${v>=0?"left:50%":"right:50%"};width:${w}%;background:${v>=0?"var(--hi)":"var(--lo)"}"></i></div>`});
 h+=`<p class="mut">Your circuit had ${cc[2]} damage records in the data (${cc[1]} customers). ${r[11]<1000?"Past damage was recorded within about "+Math.round(r[11]/100)*100+" m of you.":"No recorded damage was very close to you."} ${r[4]?"Your service is overhead.":"Your service is underground, which is usually less exposed."}</p>`;
 if(cf==0)h+=`<div class="warn"><b>Low confidence fallback:</b> there isn’t enough history near this location for a reliable prediction. Please check your utility’s outage map or call customer service rather than relying on this number.</div>`;
@@ -133,7 +200,7 @@ $("#model").textContent=`Model: logistic regression on ${D.n.toLocaleString()} p
 const C=document.createDocumentFragment();D.rows.forEach((r,i)=>{if(i<300||r[10]){const o=document.createElement("option");o.value=i;o.textContent=`P-${r[0]} · circuit C-${D.circ[r[3]][0]}${r[10]?" · declared life-support":""}`;C.appendChild(o)}});$("#pick").appendChild(C);
 $("#sev").innerHTML=SEV.map((s,i)=>`<option value="${i}">${s[0]}</option>`).join("");$("#sev").value=2;
 $("#steps").innerHTML=U.map(u=>`<div>${u[1]}<input type="number" min="0" max="20" id="q_${u[0]}" value="${S.q[u[0]]}"></div>`).join("");
-$("#pick").onchange=e=>{S.i=+e.target.value;upd()};$("#sev").onchange=e=>{S.sev=+e.target.value;upd()};
+$("#pick").onchange=e=>{S.i=+e.target.value;upd()};$("#sev").onchange=e=>{S.sev=+e.target.value;baseCell=null;recolorAll();if(storm.on||storm.t)drawZones();upd()};
 U.forEach(u=>$("#q_"+u[0]).oninput=e=>{S.q[u[0]]=Math.max(0,+e.target.value||0);upd()});["crews","acc","med","mob","crit","dm"].forEach(i=>$("#"+i).oninput=upd);addEventListener("resize",()=>map.invalidateSize());
 const QS=["Will I lose power?","How long could restoration take?","What should I do to prepare?","Do I qualify for outage alerts?"];
 $("#chips").innerHTML=QS.map(q=>`<button>${q}</button>`).join("");
