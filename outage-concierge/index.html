@@ -334,7 +334,9 @@ $("#notifTest").onclick=()=>{const k=S.ctx?S.ctx.k.band:0;if(!showNote("Outage C
 // Fire an alert once when the moving storm first reaches the selected location.
 let notifiedForStorm=false;
 function maybeStormNotify(){if(!$("#notifStorm").checked||!storm.on)return;const r=D.rows[S.i],d=distKm(storm.lat,storm.lon,r[2],r[1]);
-if(d<storm.rad&&!notifiedForStorm){notifiedForStorm=true;showNote("⚡ Storm reaching your area",simpleMsg(Math.max(2,S.ctx?S.ctx.k.band:2)))}
+if(d<storm.rad&&!notifiedForStorm){notifiedForStorm=true;const msg=simpleMsg(Math.max(2,S.ctx?S.ctx.k.band:2));showNote("⚡ Storm reaching your area",msg);
+// Also email subscribers via the backend (if one is running). Server throttles duplicates.
+if(backend.up)fetch("/api/storm-alert",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({area:"",message:msg,subject:"⚡ Storm heading your way"})}).then(r=>r.json()).then(j=>{if(j&&j.sent&&(j.sent.email||j.sent.sms))bubble("Concierge","📧 Sent a storm warning email to subscribers.")}).catch(()=>{})}
 if(d>=storm.rad*1.4)notifiedForStorm=false}
 notifState();
 // ---- Email / text sign-up (needs the backend to actually send) ----

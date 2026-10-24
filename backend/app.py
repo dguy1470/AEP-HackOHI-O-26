@@ -14,6 +14,7 @@ log what they *would* send instead of failing, which keeps local demos simple.
 """
 import os
 import json
+import time
 import logging
 import smtplib
 from email.message import EmailMessage
@@ -247,6 +248,42 @@ async def subscribe(sub: Subscription):
 async def unsubscribe(sub: Subscription):
     db.deactivate(email=sub.email, phone=sub.phone)
     return {"ok": True}
+
+
+# ---- Storm alert: the frontend simulation calls this when the storm reaches an area ----
+_last_alert = {}  # area -> timestamp, for a simple cooldown
+ALERT_COOLDOWN_S = int(os.getenv("ALERT_COOLDOWN_S", "120"))
+
+
+class StormAlert(BaseModel):
+    area: str = ""          # e.g. "P-ABC123"; empty means alert everyone
+    message: str = "⚡ A storm is reaching your area and may cause outages. Charge your phone, keep water and a flashlight handy, and stay 30 ft from any downed line."
+    subject: str = "⚡ Storm heading your way"
+
+
+@app.post("/api/storm-alert")
+async def storm_alert(a: StormAlert):
+    """Email subscribers that a (simulated) storm is reaching their area.
+    Throttled per-area so repeated calls during one pass don't send duplicates."""
+    now = time.time()
+    key = a.area or "*all*"
+    if now - _last_alert.get(key, 0) < ALERT_COOLDOWN_S:
+        return {"ok": True, "skipped": "cooldown", "sent": {"email": 0, "sms": 0}}
+    _last_alert[key] = now
+    sent = {"email": 0, "sms": 0, "errors": 0}
+    for s in db.list_subscribers():
+        # Match the subscriber's area if one was given on both sides; otherwise alert all.
+        if a.area and s.get("area") and s["area"] != a.area:
+            continue
+        chans = (s["channels"] or "").split(",")
+        try:
+            if "email" in chans and s["email"] and send_email(s["email"], a.subject, a.message):
+                sent["email"] += 1
+            if "sms" in chans and s["phone"] and send_sms(s["phone"], a.message):
+                sent["sms"] += 1
+        except Exception:
+            sent["errors"] += 1
+    return {"ok": True, "sent": sent}
 
 
 # ---- Admin (guarded by ADMIN_TOKEN) ----
