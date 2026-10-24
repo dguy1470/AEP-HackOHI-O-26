@@ -454,7 +454,7 @@ const canNotify="Notification"in window;
 function simpleMsg(band){return["⚡ Low risk right now. Nothing to do — we’ll tell you if that changes.","⚡ A storm may affect your power. Charge your phone and keep a flashlight handy.","⚡ Outages are likely in your area. Charge devices and fill some water now.","⚡ High outage risk near you. Get ready now: charge phones, water, flashlight. Stay 30 ft from any downed line."][band]}
 function notifState(){const el=$("#notifState");if(!canNotify){el.textContent="not supported in this browser";return}
 el.textContent=Notification.permission==="granted"?"on":Notification.permission==="denied"?"blocked (allow in browser settings)":"off"}
-function showNote(title,body){if(!canNotify||Notification.permission!=="granted")return false;try{new Notification(title,{body,icon:"",tag:"outage-concierge"});return true}catch(e){return false}}
+function showNote(title,body){if(!canNotify||Notification.permission!=="granted")return false;try{new Notification(title,{body,tag:"outage-concierge"});return true}catch(e){console.warn("Notification failed:",e);return false}}
 async function enableNotes(){if(!canNotify){$("#notifState").textContent="not supported in this browser";return}
 if(Notification.permission==="granted"){showNote("Alerts are on ✅","We’ll let you know if a storm heads your way.");notifState();return}
 const p=await Notification.requestPermission();notifState();
