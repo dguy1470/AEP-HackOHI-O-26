@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Secrets (never commit API keys)
+.env
+*.key
+
+# Challenge data (Data1/Data2) is NOT stored in git.
+# Some files exceed GitHub's 100 MB limit, and the team has a separate way to
+# obtain the dataset. Place the organizer-provided "data/" folder (with Data1
+# and Data2) in the project root to run the app. See README.
+data/

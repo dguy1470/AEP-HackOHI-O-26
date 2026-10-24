@@ -1,0 +1,16 @@
+# AI Outage Concierge - dependencies
+# Core app
+streamlit>=1.38
+pandas>=2.2
+numpy>=1.26
+
+# Geospatial
+geopandas>=1.0
+shapely>=2.0
+pyproj>=3.6
+
+# Mapping / charts
+pydeck>=0.9
+
+# Optional: LLM message polish (only used if OPENAI_API_KEY is set)
+# openai>=1.40
