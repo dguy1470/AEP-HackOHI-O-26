@@ -1,0 +1,149 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>AI Outage Concierge</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--bg:#f5f6f8;--card:#fff;--tx:#17202a;--mut:#596573;--bd:#dce1e7;--ac:#b4262b;--acbg:#fbeaea;--lo:#2e8b57;--md:#c99700;--el:#e07b00;--hi:#c0262d}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12161b;--card:#1b2128;--tx:#e8ecf0;--mut:#9aa6b2;--bd:#2c343d;--ac:#ff7075;--acbg:#3a2224;--lo:#4cc283;--md:#e8bd2e;--el:#ff9a2e;--hi:#ff5a60}}
+:root[data-theme="dark"]{--bg:#12161b;--card:#1b2128;--tx:#e8ecf0;--mut:#9aa6b2;--bd:#2c343d;--ac:#ff7075;--acbg:#3a2224;--lo:#4cc283;--md:#e8bd2e;--el:#ff9a2e;--hi:#ff5a60}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{padding:14px 16px;border-bottom:1px solid var(--bd);background:var(--card)}header h1{margin:0;font-size:19px}header p{margin:2px 0 0;color:var(--mut);font-size:13px}
+main{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:14px;padding:14px;max-width:1280px;margin:auto}
+@media(max-width:860px){main{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px;margin-bottom:14px}
+h2{font-size:15px;margin:0 0 8px}h3{font-size:13px;margin:10px 0 4px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em}
+label{font-size:13px;color:var(--mut);display:block;margin:6px 0 2px}select,input,button{font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:6px 9px;max-width:100%}
+button{cursor:pointer}button:hover{border-color:var(--ac)}button.on{background:var(--acbg);border-color:var(--ac)}
+#map{width:100%;height:360px;border-radius:8px;border:1px solid var(--bd);background:var(--bg)}
+.leaflet-container{border-radius:8px;font:inherit}
+#addr{flex:1;min-width:140px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.mut{color:var(--mut);font-size:13px}
+.band{display:inline-block;padding:3px 12px;border-radius:99px;color:#fff;font-weight:700;font-size:17px}
+.bar{height:9px;border-radius:5px;background:var(--bd);position:relative;margin:2px 0 7px}.bar i{position:absolute;top:0;bottom:0;border-radius:5px}
+.step{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}.step div{font-size:12px;color:var(--mut)}.step input{width:100%}
+.tl{border-left:3px solid var(--bd);margin:6px 0 0 6px;padding-left:12px}.tl p{margin:0 0 7px;font-size:14px}
+.warn{background:var(--acbg);border-left:4px solid var(--ac);padding:8px 10px;border-radius:6px;margin:8px 0;font-size:14px}
+.cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}@media(max-width:600px){.cols{grid-template-columns:1fr}}
+.cols div{border:1px solid var(--bd);border-radius:8px;padding:8px;font-size:13px}
+.msg{border:1px solid var(--bd);border-radius:8px;padding:9px;margin-top:6px;background:var(--bg);font-size:14px;white-space:pre-wrap}
+ul{margin:4px 0;padding-left:20px}#chat{max-height:200px;overflow:auto}#chat p{margin:5px 0}.u{color:var(--ac);font-weight:600}
+.lg span{display:inline-block;width:10px;height:10px;border-radius:50%;margin:0 3px 0 8px}
+</style></head><body>
+<header><h1>⚡ AI Outage Concierge</h1><p>Hack/OHIO 2026 prototype · built on anonymized Appalachian Power circuit data (117,642 premises, 1,645 historical damage records) · estimates only, not confirmed utility information</p></header>
+<main><div>
+<section class="card"><h2>1 · Pick an anonymized location</h2>
+<div class="row" style="margin-bottom:8px"><input id="addr" placeholder="Enter an address or place…"><button id="findbtn">Find nearest</button></div>
+<div id="map" aria-label="Map of anonymized premises colored by outage risk"></div>
+<div class="mut" id="geomsg" style="margin-top:6px"></div>
+<div class="mut lg">Risk:<span style="background:var(--lo)"></span>Low<span style="background:var(--md)"></span>Moderate<span style="background:var(--el)"></span>Elevated<span style="background:var(--hi)"></span>High<span style="background:none;border:1px solid var(--tx)"></span>Selected</div>
+<div class="row"><label for="pick">Premise</label><select id="pick"></select><label><input type="checkbox" id="dm"> show past damage</label></div>
+<label for="sev">Storm scenario</label><select id="sev"></select>
+<p class="mut" style="margin-top:8px">Locations are rounded to ~400 m, IDs are hashed, and no addresses, names or facility locations are shown.</p></section>
+<section class="card"><h2>Ask the concierge</h2><div id="chat" aria-live="polite"></div>
+<div class="row" id="chips"></div><div class="row" style="margin-top:6px"><input id="q" placeholder="Ask a question…" style="flex:1"><button id="go">Ask</button></div></section>
+</div><div>
+<section class="card"><h2>2 · Outage risk</h2><div id="risk"></div></section>
+<section class="card"><h2>3 · Restoration scenario</h2>
+<p class="mut">Change what’s damaged or how many crews are working and watch the estimate move.</p><div class="step" id="steps"></div>
+<div class="row"><label for="crews">Crews</label><input type="number" id="crews" min="1" max="12" value="3" style="width:64px"><label><input type="checkbox" id="acc"> Access problems (trees, terrain)</label></div><div id="rest"></div></section>
+<section class="card"><h2>4 · Prepare</h2><div class="row"><label><input type="checkbox" id="med"> Medical equipment needs power</label><label><input type="checkbox" id="mob"> Mobility / accessibility needs</label><label><input type="checkbox" id="crit"> Critical facility</label></div><p class="mut">Needs are only what you tell us here. We never infer them.</p><div id="prep"></div></section>
+<section class="card"><h2>5 · Alerts and messages</h2><div id="alert"></div><div class="row" id="mt"></div><div class="msg" id="msg"></div></section>
+<section class="card"><h2>6 · How to read this</h2><div class="cols"><div><b>Confirmed facts</b><br>Only data in the files: your circuit’s damage history and the upstream devices serving you. Nothing about the live grid.</div><div><b>Model estimates</b><br>Risk and restoration ranges are modeled from past storms and STORMS labor hours. Indirect labor and queue delays are assumptions.</div><div><b>Your actions</b><br>Checklists and alerts follow documented challenge rules, listed above.</div></div><p class="mut" id="model"></p></section>
+</div></main>
+<script>
+const D=/*DATA*/;const $=s=>document.querySelector(s);
+const SEV=[["Light storm",-1.2,2],["Moderate storm",-.5,6],["Feb 2025–like storm",0,12],["Severe storm",.8,24]];
+const BANDS=[["Low",.25,"--lo"],["Moderate",.4,"--md"],["Elevated",.6,"--el"],["High",1.01,"--hi"]];
+const U=[["pole","Poles",3.43],["wire","Wire spans",1.08],["xfmr","Transformers",2.0],["fuse","Fuse / switch banks",1.71],["rec","Reclosers",1.10]];
+const NM=["Past damage near you","Your circuit’s damage history","Overhead service line","Fuses upstream of you","Reclosers upstream of you"];
+const S={i:0,sev:2,q:{pole:1,wire:2,xfmr:1,fuse:1,rec:0},msg:0};let sel=[];
+const B=[-80.27,-79.63,36.98,37.49];
+const col=n=>getComputedStyle(document.documentElement).getPropertyValue(BANDS[n][2]).trim()||"#888";
+// Leaflet map over OpenStreetMap tiles. Markers are the anonymized premises (already rounded to ~400 m).
+const map=L.map("map",{zoomControl:true}).fitBounds([[B[2],B[0]],[B[3],B[1]]]);
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap contributors"}).addTo(map);
+const cvRenderer=L.canvas({padding:.5});// canvas renderer scales to tens of thousands of points
+const dmgLayer=L.layerGroup();let markers=[],selMarker=null,addrMarker=null;
+// Haversine distance in km between two [lon,lat]-style rows.
+function distKm(lat1,lon1,lat2,lon2){const R=6371,t=x=>x*Math.PI/180,dLat=t(lat2-lat1),dLon=t(lon2-lon1),a=Math.sin(dLat/2)**2+Math.cos(t(lat1))*Math.cos(t(lat2))*Math.sin(dLon/2)**2;return 2*R*Math.asin(Math.sqrt(a))}
+function risk(r,sev){const x=[r[5],r[6],r[4],r[7],r[8]];let l=D.b+SEV[sev][1];const c=x.map((v,k)=>D.coef[k]*(v-D.mu[k])/D.sd[k]);c.forEach(v=>l+=v);const p=1/(1+Math.exp(-l));return{p,c,band:BANDS.findIndex(b=>p<b[1])}}
+function conf(r){const n=D.circ[r[3]][2],d=r[11];return n>=100&&d<800?2:n>=20&&d<2500?1:0}
+const CN=["Low","Medium","High"];
+function fmt(h){return h<36?Math.round(h)+" hours":(h/24).toFixed(1)+" days"}
+// Build one circle marker per premise once; recolor them on each draw().
+function buildMarkers(){D.rows.forEach((r,i)=>{const m=L.circleMarker([r[2],r[1]],{renderer:cvRenderer,radius:5,weight:1,color:"#0003",fillOpacity:.8});m.on("click",()=>{S.i=i;$("#pick").value=i;upd();map.panTo([r[2],r[1]])});m.bindTooltip("P-"+r[0]);m.addTo(map);markers.push(m)})}
+function draw(){const cs=BANDS.map((_,n)=>col(n));
+D.rows.forEach((r,i)=>{markers[i].setStyle({fillColor:cs[risk(r,S.sev).band]})});
+// Highlight the selected premise.
+const r=D.rows[S.i];if(selMarker)selMarker.remove();selMarker=L.circleMarker([r[2],r[1]],{radius:10,weight:3,color:getComputedStyle(document.body).color,fill:false}).addTo(map);
+// Past-damage overlay toggles with the checkbox.
+if($("#dm").checked){dmgLayer.clearLayers();D.dmg.forEach(d=>L.circleMarker([d[1],d[0]],{radius:2,weight:0,color:"#788",fillColor:"#788",fillOpacity:.6}).addTo(dmgLayer));dmgLayer.addTo(map)}else{dmgLayer.remove()}}
+// Given a lat/lon, drop an address pin, snap to the nearest premise, and report distance.
+function snapTo(lat,lon,label){let bi=0,bd=1e9;D.rows.forEach((r,i)=>{const d=distKm(lat,lon,r[2],r[1]);if(d<bd){bd=d;bi=i}});
+S.i=bi;$("#pick").value=bi;upd();
+if(addrMarker)addrMarker.remove();addrMarker=L.marker([lat,lon],{title:label||"Your location"}).addTo(map);
+const r=D.rows[bi];map.fitBounds([[lat,lon],[r[2],r[1]]],{padding:[40,40],maxZoom:15});
+$("#geomsg").innerHTML=`${label?label+" · ":""}nearest anonymized location is about <b>${bd<1?Math.round(bd*1000)+" m":bd.toFixed(1)+" km"}</b> away (P-${r[0]}). Your location isn’t stored or shown; it’s only used to pick the closest point.`}
+// Forward geocode a typed address via OSM Nominatim, then snap.
+async function findNearest(){const q=$("#addr").value.trim();if(!q){$("#geomsg").textContent="Type an address or place first.";return}
+$("#geomsg").textContent="Looking up address…";
+try{const res=await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&q="+encodeURIComponent(q),{headers:{"Accept":"application/json"}});const js=await res.json();
+if(!js.length){$("#geomsg").textContent="Couldn’t find that address. Try adding a city or ZIP.";return}
+snapTo(+js[0].lat,+js[0].lon,js[0].display_name.split(",").slice(0,2).join(","));
+}catch(err){$("#geomsg").textContent="Address lookup failed (needs an internet connection). You can still click a point on the map."}}
+// Reverse geocode a clicked point to an address, then snap.
+async function clickToAddress(lat,lon){$("#geomsg").textContent="Finding the address at that point…";
+try{const res=await fetch("https://nominatim.openstreetmap.org/reverse?format=json&zoom=18&lat="+lat+"&lon="+lon,{headers:{"Accept":"application/json"}});const js=await res.json();
+const label=js&&js.display_name?js.display_name.split(",").slice(0,3).join(","):`${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+if(js&&js.display_name)$("#addr").value=js.display_name;
+snapTo(lat,lon,label);
+}catch(err){snapTo(lat,lon,`${lat.toFixed(4)}, ${lon.toFixed(4)}`)}}
+map.on("click",e=>clickToAddress(e.latlng.lat,e.latlng.lng));
+buildMarkers();
+$("#findbtn").onclick=findNearest;$("#addr").onkeydown=e=>{if(e.key=="Enter")findNearest()};
+function needs(){return{med:$("#med").checked,mob:$("#mob").checked,crit:$("#crit").checked}}
+function rest(r){const H=U.reduce((s,u)=>s+S.q[u[0]]*u[2],0),cr=Math.max(1,+$("#crews").value||1),ac=$("#acc").checked;
+const mult=1+.30+.40+(ac?.25:0),work=H*mult/cr,wait=SEV[S.sev][2];return{H,cr,mult,work,wait,lo:wait*.6+work*.8,hi:wait*1.6+work*1.6*(ac?1.2:1)}}
+function steps(r,R){const ch=r[12],T=ch.find(c=>c[0]=="T"),Fs=ch.filter(c=>c[0]=="F"),Rs=ch.filter(c=>c[0]=="R");
+const plan=[["rec","Recloser repaired",Rs.length?Rs[Rs.length-1][1]:null],["fuse","Fuse / switch bank repaired",Fs.length?Fs[Fs.length-1][1]:null],["pole","Poles replaced",Fs.length?Fs[0][1]:null],["wire","Wire spans re-strung",Fs.length?Fs[0][1]:null],["xfmr","Transformer replaced",T?T[1]:null]];
+let t=R.wait,out=[];plan.forEach(p=>{const u=U.find(x=>x[0]==p[0]);if(S.q[p[0]]>0){t+=S.q[p[0]]*u[2]*R.mult/R.cr;out.push([p[1],t,p[2]])}});return out}
+function upd(){const r=D.rows[S.i],k=risk(r,S.sev),cf=conf(r),nd=needs(),R=rest(r),bn=BANDS[k.band],cc=D.circ[r[3]];
+let h=`<div class="row"><span class="band" style="background:${col(k.band)}">${bn[0]} risk</span><b>${Math.round(k.p*100)}%</b><span class="mut">chance of an outage in this scenario · confidence <b>${CN[cf]}</b></span></div>
+<h3>What drives it</h3>`;const items=k.c.map((v,i)=>[NM[i],v]).concat([["Storm severity ("+SEV[S.sev][0]+")",SEV[S.sev][1]]]).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).slice(0,5);
+items.forEach(([n,v])=>{const w=Math.min(48,Math.abs(v)*80);h+=`<div class="mut">${v>=0?"↑ raises":"↓ lowers"} risk · ${n}</div><div class="bar"><i style="${v>=0?"left:50%":"right:50%"};width:${w}%;background:${v>=0?"var(--hi)":"var(--lo)"}"></i></div>`});
+h+=`<p class="mut">Your circuit had ${cc[2]} damage records in the data (${cc[1]} customers). ${r[11]<1000?"Past damage was recorded within about "+Math.round(r[11]/100)*100+" m of you.":"No recorded damage was very close to you."} ${r[4]?"Your service is overhead.":"Your service is underground, which is usually less exposed."}</p>`;
+if(cf==0)h+=`<div class="warn"><b>Low confidence fallback:</b> there isn’t enough history near this location for a reliable prediction. Please check your utility’s outage map or call customer service rather than relying on this number.</div>`;
+$("#risk").innerHTML=h;
+const ST=steps(r,R);let t=`<h3>Estimated restoration (model output)</h3><p style="font-size:18px;margin:2px 0"><b>${fmt(R.lo)} – ${fmt(R.hi)}</b> after the outage begins</p><p class="mut">${R.H.toFixed(1)} base labor-hours (STORMS) × ${R.mult.toFixed(2)} for travel and non-productive time ÷ ${R.cr} crew(s), plus about ${R.wait} h waiting for crews in this scenario.</p>`;
+const dom=S.q.pole>=S.q.wire?"Damaged Pole":"Damaged Wire",hs=D.hist[dom];
+if(hs)t+=`<p class="mut">Reality check: in the Feb 2025 storm, ${hs[2]} “${dom.toLowerCase()}” repairs in this area took a median of ${hs[0]} day(s) and 90% finished within ${hs[1]} days (reported to repaired, day-level dates).</p>`;
+t+=`<div class="tl">`+(ST.length?ST.map(s=>`<p><b>~${fmt(s[1])}</b> · ${s[0]}${s[2]?` <span class="mut">(about ${s[2]} customers on that section)</span>`:""}</p>`).join(""):"<p>No damage selected, so no repair needed.</p>")+`</div><p class="mut">Step restoration: upstream repairs return power to more customers first. Your service comes back after the last step above. This is not a confirmed restoration time.</p>`;$("#rest").innerHTML=t;
+const L=[];if(k.band>=2)L.push("Charge phones and power banks now; set refrigerator to coldest setting.");else L.push("Charge phones and keep flashlights where you can find them.");
+L.push("Store about 1 gallon of water per person per day for 3 days; keep non-perishable food on hand.");if(R.hi>24)L.push("Plan for a long outage: coolers and ice, a battery radio, and a plan for warming or cooling your home safely.");
+if(nd.med)L.push("Medical equipment: ask your provider about backup power, and tell the utility about your needs. If it is life-threatening, call 911.");if(nd.mob)L.push("Mobility: charge mobility devices fully and arrange rides or help in advance. Stay on a floor you can leave safely.");if(nd.crit)L.push("Critical facility: confirm backup power and fuel, and contact your utility account representative before the storm.");
+$("#prep").innerHTML=`<div class="warn"><b>⚠ Safety:</b> Treat every downed line as live and stay at least 30 feet away. Call 911 and then your utility. Never run a generator indoors or in a garage.</div><ul>${L.map(x=>"<li>"+x+"</li>").join("")}</ul>`;
+const prio=nd.med||nd.crit||r[10],el=k.band>=1||prio||r[9],ch=prio?"Phone call + SMS + email":k.band>=2?"SMS + app push":"App push or email",tm=k.band>=2?"48 h, 24 h and 6 h before the storm":k.band==1?"24 h before the storm":"Optional: 12 h before the storm";
+const esc=[];if(prio&&R.hi>4)esc.push("Outage longer than 4 h → human welfare check");if(R.hi>48)esc.push("Estimate over 48 h → proactive call");if(cf==0)esc.push("Low confidence → route to an agent");esc.push("Estimate shifts by more than 2 h → update message");
+$("#alert").innerHTML=`<p><b>${el?"✔ Qualifies for outage alerts":"Not required under the rules"}</b> <span class="mut">(rule: Moderate+ risk, or declared medical/critical need, or priority facility within ~2 mi${r[10]?"; this account has a declared life-support flag":""})</span></p><ul><li><b>Channel:</b> ${ch}</li><li><b>Timing:</b> ${tm}; outage confirmed within 5 min; each estimate change; restoration complete.</li><li><b>Escalate when:</b> ${esc.join("; ")}.</li></ul>`;
+const id="P-"+r[0],etr=`${fmt(R.lo)} to ${fmt(R.hi)}`;const M=[["Pre-storm",`Storm alert (${id}): outages are ${bn[0]=="High"||bn[0]=="Elevated"?"likely":"possible"} in your area. Charge devices and stock water today. If a line is down, stay 30 ft away and call 911.`],["Outage confirmed",`We have confirmed an outage affecting your area. Crews are being assigned. Our early estimate is ${etr}, and we will update it as crews assess damage.`],["Estimate updated",`Update: damage assessment changed our estimate to about ${etr}. This is an estimate, not a guarantee. We will update again when it changes.`],["Restored",`Power has been restored to your area. If your lights are still out, check your breakers and report it to us. Thank you for your patience.`]];
+$("#mt").innerHTML=M.map((m,i)=>`<button class="${i==S.msg?"on":""}" data-i="${i}">${m[0]}</button>`).join("");$("#msg").textContent=M[S.msg][1];
+$("#mt").querySelectorAll("button").forEach(b=>b.onclick=()=>{S.msg=+b.dataset.i;upd()});
+S.ctx={k,cf,R,el,bn,L,etr};draw()}
+$("#model").textContent=`Model: logistic regression on ${D.n.toLocaleString()} premises using ${D.nd.toLocaleString()} damage records. It predicts whether damage was recorded within 400 m in the Feb 2025 storm; AUC ${D.auc} (modest, so treat as a coarse screen). Base rate ${Math.round(D.base*100)}%. Wire, switch and recloser hours are composites of STORMS lines; travel (30%) and non-productive (40%) are assumed.`;
+const C=document.createDocumentFragment();D.rows.forEach((r,i)=>{if(i<300||r[10]){const o=document.createElement("option");o.value=i;o.textContent=`P-${r[0]} · circuit C-${D.circ[r[3]][0]}${r[10]?" · declared life-support":""}`;C.appendChild(o)}});$("#pick").appendChild(C);
+$("#sev").innerHTML=SEV.map((s,i)=>`<option value="${i}">${s[0]}</option>`).join("");$("#sev").value=2;
+$("#steps").innerHTML=U.map(u=>`<div>${u[1]}<input type="number" min="0" max="20" id="q_${u[0]}" value="${S.q[u[0]]}"></div>`).join("");
+$("#pick").onchange=e=>{S.i=+e.target.value;upd()};$("#sev").onchange=e=>{S.sev=+e.target.value;upd()};
+U.forEach(u=>$("#q_"+u[0]).oninput=e=>{S.q[u[0]]=Math.max(0,+e.target.value||0);upd()});["crews","acc","med","mob","crit","dm"].forEach(i=>$("#"+i).oninput=upd);addEventListener("resize",()=>map.invalidateSize());
+const QS=["Will I lose power?","How long could restoration take?","What should I do to prepare?","Do I qualify for outage alerts?"];
+$("#chips").innerHTML=QS.map(q=>`<button>${q}</button>`).join("");
+function ask(q){const c=S.ctx,t=q.toLowerCase(),r=D.rows[S.i];let a;
+if(/lose|outage|power|risk|likely/.test(t)&&!/long|restor|prepar|alert|qualif/.test(t))a=`${c.bn[0]} risk (${Math.round(c.k.p*100)}%), ${CN[c.cf]} confidence. Main reasons: ${NM.map((n,i)=>[n,c.k.c[i]]).sort((a,b)=>b[1]-a[1]).slice(0,2).map(x=>x[0].toLowerCase()).join(" and ")}. This is a model estimate, not a promise.`;
+else if(/long|restor|how|when|time/.test(t)&&!/prepar/.test(t))a=`In this scenario, roughly ${c.etr} after an outage starts. Change the damage counts or crews in section 3 to see how it moves. It is not an official restoration time.`;
+else if(/prepar|do|ready|safe/.test(t)&&!/qualif|alert/.test(t))a=`Top steps: ${c.L.slice(0,2).join(" ")} See section 4 for the full list, including safety notes.`;
+else if(/alert|qualif|notif/.test(t))a=c.el?"Yes, this scenario qualifies for outage alerts under the prototype rules. See section 5 for timing and channel.":"Not under the prototype rules, but you can still opt in to alerts.";
+else a="I can help with outage risk, restoration time, preparation and alerts. For emergencies call 911; to report an outage contact your utility directly.";
+$("#chat").innerHTML+=`<p class="u">You: ${q.replace(/</g,"&lt;")}</p><p>${a}</p>`;$("#chat").scrollTop=1e5}
+$("#chips").querySelectorAll("button").forEach(b=>b.onclick=()=>ask(b.textContent));$("#go").onclick=()=>{const v=$("#q").value.trim();if(v){ask(v);$("#q").value=""}};$("#q").onkeydown=e=>{if(e.key=="Enter")$("#go").click()};
+S.i=D.rows.slice(0,40).findIndex(r=>r[12].length>3);S.i=Math.max(0,S.i);$("#pick").value=S.i;upd();
+</script></body></html>
