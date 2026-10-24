@@ -1,0 +1,172 @@
+git<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Roanoke, VA — Interactive Coordinate Map</title>
+
+  <!-- Leaflet CSS (no integrity/crossorigin so it loads under file:// too) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    header {
+      background: #1a2a3a;
+      color: #fff;
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    header h1 { font-size: 1.15rem; margin: 0; font-weight: 600; }
+    header p { margin: 0; font-size: 0.8rem; opacity: 0.75; }
+    #coords-panel {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: rgba(255,255,255,0.08);
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+    }
+    #coords-panel .val {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-weight: 600;
+      color: #7fd1ff;
+    }
+    #copy-btn {
+      background: #2d7dd2; color: #fff; border: none;
+      padding: 6px 12px; border-radius: 6px; cursor: pointer;
+      font-size: 0.82rem; font-weight: 600; transition: background 0.15s;
+    }
+    #copy-btn:hover { background: #3a92ef; }
+    #copy-btn:disabled { background: #556; cursor: default; }
+
+    /* Explicit sizing so the map never collapses to zero height */
+    #map-wrap { position: relative; flex: 1; min-height: 400px; }
+    #map { position: absolute; inset: 0; width: 100%; height: 100%; background: #e8ecef; }
+
+    .hint {
+      position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%);
+      z-index: 1000; background: rgba(26,42,58,0.9); color: #fff;
+      padding: 7px 16px; border-radius: 20px; font-size: 0.82rem;
+      pointer-events: none; transition: opacity 0.4s;
+    }
+    #err {
+      display: none; position: absolute; top: 12px; left: 50%;
+      transform: translateX(-50%); z-index: 1001; max-width: 90%;
+      background: #b02a2a; color: #fff; padding: 10px 16px;
+      border-radius: 8px; font-size: 0.85rem; text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <div>
+        <h1>🗺️ Roanoke, VA — Interactive Coordinate Map</h1>
+        <p>Click anywhere on the map to drop a pin and read its coordinates.</p>
+      </div>
+      <div id="coords-panel">
+        <span>Lat: <span class="val" id="lat">—</span></span>
+        <span>Lng: <span class="val" id="lng">—</span></span>
+        <button id="copy-btn" disabled>Copy</button>
+      </div>
+    </header>
+    <div id="map-wrap">
+      <div id="map"></div>
+      <div class="hint" id="hint">Click the map to get coordinates</div>
+      <div id="err"></div>
+    </div>
+  </div>
+
+  <!-- Leaflet JS (no integrity/crossorigin) -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <script>
+    const errBox = document.getElementById("err");
+    function showError(msg) {
+      errBox.innerHTML = msg;
+      errBox.style.display = "block";
+    }
+
+    // If Leaflet itself didn't load, tell the user clearly instead of showing a blank page.
+    if (typeof L === "undefined") {
+      showError(
+        "Leaflet failed to load from the CDN. Check your internet connection, " +
+        "or try serving this file over http (e.g. <code>python3 -m http.server</code>) " +
+        "rather than opening it directly."
+      );
+    } else {
+      const ROANOKE = [37.2710, -79.9414];
+      const map = L.map("map").setView(ROANOKE, 13);
+
+      // Esri World Street Map — free, no API key, works on file:// / local setups
+      const tiles = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}", {
+        maxZoom: 19,
+        attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom, 2012'
+      });
+
+      // Warn if the tile images can't be fetched (offline / blocked)
+      let tileErrorShown = false;
+      tiles.on("tileerror", function () {
+        if (!tileErrorShown) {
+          tileErrorShown = true;
+          showError("Map tiles couldn't load — you appear to be offline or the tile server is blocked. Clicking still returns coordinates.");
+        }
+      });
+      tiles.addTo(map);
+
+      // Fix the common "blank until resize" issue with flex/absolute layouts
+      setTimeout(() => map.invalidateSize(), 200);
+      window.addEventListener("resize", () => map.invalidateSize());
+
+      const latEl = document.getElementById("lat");
+      const lngEl = document.getElementById("lng");
+      const copyBtn = document.getElementById("copy-btn");
+      const hint = document.getElementById("hint");
+
+      let marker = null;
+      let lastCoords = null;
+
+      map.on("click", function (e) {
+        const latStr = e.latlng.lat.toFixed(6);
+        const lngStr = e.latlng.lng.toFixed(6);
+
+        if (marker) marker.setLatLng(e.latlng);
+        else marker = L.marker(e.latlng).addTo(map);
+
+        marker.bindPopup(`<b>Coordinates</b><br>Lat: ${latStr}<br>Lng: ${lngStr}`).openPopup();
+
+        latEl.textContent = latStr;
+        lngEl.textContent = lngStr;
+        lastCoords = `${latStr}, ${lngStr}`;
+        copyBtn.disabled = false;
+        copyBtn.textContent = "Copy";
+        hint.style.opacity = "0";
+      });
+
+      copyBtn.addEventListener("click", function () {
+        if (!lastCoords) return;
+        navigator.clipboard.writeText(lastCoords).then(() => {
+          copyBtn.textContent = "Copied!";
+          setTimeout(() => (copyBtn.textContent = "Copy"), 1500);
+        }).catch(() => (copyBtn.textContent = "Copy failed"));
+      });
+    }
+  </script>
+</body>
+</html>
