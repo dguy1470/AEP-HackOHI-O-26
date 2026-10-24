@@ -11,6 +11,8 @@ pyproj>=3.6
 
 # Mapping / charts
 pydeck>=0.9
+folium>=0.17
+streamlit-folium>=0.21
 
 # Optional: LLM message polish (only used if OPENAI_API_KEY is set)
 # openai>=1.40

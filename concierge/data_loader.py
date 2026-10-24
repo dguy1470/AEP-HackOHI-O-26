@@ -54,13 +54,27 @@ class ConciergeData:
 # --------------------------------------------------------------------------
 # Low-level readers
 # --------------------------------------------------------------------------
-def _read_layer(path) -> Optional["gpd.GeoDataFrame"]:
-    """Read a shapefile to a GeoDataFrame in display CRS, or None if missing."""
+def _read_layer(path, columns: Optional[list[str]] = None) -> Optional["gpd.GeoDataFrame"]:
+    """Read a shapefile to a GeoDataFrame in display CRS, or None if missing.
+
+    If ``columns`` is given, only those attribute columns are read (geometry is
+    always included). Reading a subset of columns dramatically speeds up load
+    time for the large tables (e.g. Customer_Clip has ~117k rows), since the
+    rest of the .dbf never has to be parsed.
+    """
     if not HAVE_GEOPANDAS or not path.exists():
         return None
+    read_kwargs = {}
+    if columns is not None:
+        # geopandas (pyogrio engine) supports reading a column subset.
+        read_kwargs["columns"] = columns
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        gdf = gpd.read_file(path)
+        try:
+            gdf = gpd.read_file(path, **read_kwargs)
+        except Exception:
+            # Fall back to a full read if the subset read is unsupported.
+            gdf = gpd.read_file(path)
     if gdf.crs is not None:
         try:
             gdf = gdf.to_crs(config.DISPLAY_CRS)
@@ -236,14 +250,14 @@ def load_data() -> ConciergeData:
         )
         return data
 
-    dmg_gdf = _read_layer(config.LAYERS["damage"])
+    dmg_gdf = _read_layer(config.LAYERS["damage"], columns=config.DAMAGE_READ_COLS)
     if dmg_gdf is not None and len(dmg_gdf):
         data.damage = _build_damage(dmg_gdf)
         data.circuit_profile = _build_circuit_profile(data.damage)
     else:
         data.warnings.append("Damage layer missing or empty.")
 
-    cust_gdf = _read_layer(config.LAYERS["customers"])
+    cust_gdf = _read_layer(config.LAYERS["customers"], columns=config.CUSTOMER_READ_COLS)
     if cust_gdf is not None and len(cust_gdf):
         data.customers = _build_customers(cust_gdf)
     else:
@@ -251,3 +265,145 @@ def load_data() -> ConciergeData:
 
     data.priority_points = _collect_priority_points()
     return data
+
+
+# --------------------------------------------------------------------------
+# Location resolution: click-to-locate and address geocoding
+# --------------------------------------------------------------------------
+@dataclass
+class LocatedPoint:
+    lat: float
+    lon: float
+    circuit: str | None
+    distance_m: float | None
+    source: str                 # "map_click" | "address" | "fallback"
+    label: str = ""             # human-readable description (no PII)
+    critical: bool = False
+    medical: bool = False
+
+
+def _haversine_m(lat1, lon1, lat2, lon2):
+    """Vectorized great-circle distance in meters."""
+    r = 6371000.0
+    p1 = np.radians(lat1)
+    p2 = np.radians(lat2)
+    dphi = np.radians(lat2 - lat1)
+    dlmb = np.radians(lon2 - lon1)
+    a = (np.sin(dphi / 2) ** 2
+         + np.cos(p1) * np.cos(p2) * np.sin(dlmb / 2) ** 2)
+    return 2 * r * np.arcsin(np.sqrt(a))
+
+
+def locate_nearest(data: "ConciergeData", lat: float, lon: float,
+                   source: str = "map_click") -> LocatedPoint:
+    """Find the nearest customer premise to a point and return its circuit.
+
+    Falls back to the nearest damage record (and its circuit) if customers
+    have no coordinates. Never exposes any identifying customer field.
+    """
+    # Prefer customers (what a real premise lookup would hit).
+    cust = data.customers
+    if not cust.empty and {"lat", "lon"}.issubset(cust.columns):
+        sub = cust.dropna(subset=["lat", "lon"])
+        if len(sub):
+            d = _haversine_m(lat, lon, sub["lat"].values, sub["lon"].values)
+            i = int(np.argmin(d))
+            row = sub.iloc[i]
+            circuit = _circuit_from_customer(data, row.get("circuit_id"))
+            return LocatedPoint(
+                lat=lat, lon=lon, circuit=circuit,
+                distance_m=float(d[i]), source=source,
+                label="Nearest premise on an anonymized circuit",
+                critical=_truthy(row.get("critical")),
+                medical=_has_medical(row.get("special_op")),
+            )
+
+    # Fallback: nearest damage point.
+    dmg = data.damage
+    if not dmg.empty and {"lat", "lon"}.issubset(dmg.columns):
+        sub = dmg.dropna(subset=["lat", "lon"])
+        if len(sub):
+            d = _haversine_m(lat, lon, sub["lat"].values, sub["lon"].values)
+            i = int(np.argmin(d))
+            row = sub.iloc[i]
+            return LocatedPoint(
+                lat=lat, lon=lon, circuit=row.get("circuit"),
+                distance_m=float(d[i]), source=source,
+                label="Nearest historical damage point")
+
+    return LocatedPoint(lat=lat, lon=lon, circuit=None, distance_m=None,
+                        source="fallback",
+                        label="No nearby records found")
+
+
+def _circuit_from_customer(data: "ConciergeData", customer_circuit_id):
+    """Map a customer circuit_id to a damage-space circuit (CIRn) if possible.
+
+    The customer file uses codes like '0000012' while the damage file uses
+    'CIR12'. They are not guaranteed to align, so we try a best-effort numeric
+    match and otherwise return the customer code as-is (the risk model
+    degrades gracefully for unknown circuits).
+    """
+    if customer_circuit_id is None:
+        return None
+    s = str(customer_circuit_id).strip()
+    # Extract trailing digits and try the matching CIR<n> code.
+    digits = "".join(ch for ch in s if ch.isdigit()).lstrip("0")
+    if digits:
+        candidate = f"CIR{digits}"
+        if data.circuit_profile is not None and not data.circuit_profile.empty:
+            if (data.circuit_profile["circuit"] == candidate).any():
+                return candidate
+    return s or None
+
+
+def _truthy(v) -> bool:
+    if v is None:
+        return False
+    s = str(v).strip().upper()
+    return s not in ("", "N", "NO", "0", "FALSE", "NONE", "NAN", "<NA>")
+
+
+def _has_medical(special_op) -> bool:
+    if special_op is None:
+        return False
+    s = str(special_op).upper()
+    return any(k in s for k in ("MED", "LIFE", "OXYGEN", "CRITICAL"))
+
+
+def geocode_address(address: str) -> tuple[float, float] | None:
+    """Best-effort address -> (lat, lon) via OpenStreetMap Nominatim.
+
+    Requires internet. Returns None on any failure so callers can fall back
+    to map-click. No API key needed; we send a descriptive User-Agent per
+    Nominatim usage policy.
+    """
+    if not address or not address.strip():
+        return None
+    try:
+        import requests
+
+        resp = requests.get(
+            "https://nominatim.openstreetmap.org/search",
+            params={"q": address, "format": "json", "limit": 1},
+            headers={"User-Agent": "AEP-Outage-Concierge/0.1 (hackathon demo)"},
+            timeout=8,
+        )
+        resp.raise_for_status()
+        results = resp.json()
+        if results:
+            return float(results[0]["lat"]), float(results[0]["lon"])
+    except Exception:
+        return None
+    return None
+
+
+def data_center(data: "ConciergeData") -> tuple[float, float]:
+    """A reasonable default map center (median of damage points)."""
+    dmg = data.damage
+    if not dmg.empty and {"lat", "lon"}.issubset(dmg.columns):
+        sub = dmg.dropna(subset=["lat", "lon"])
+        if len(sub):
+            return float(sub["lat"].median()), float(sub["lon"].median())
+    # Roanoke, VA fallback.
+    return 37.27, -79.94

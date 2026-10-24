@@ -21,6 +21,10 @@ from concierge.recommendations import build_guidance
 from concierge.alerts import evaluate_alert
 from concierge.nl import compose_messages
 from concierge.chat import ChatContext, respond
+from concierge.data_loader import locate_nearest, geocode_address, data_center
+
+import folium
+from streamlit_folium import st_folium
 
 
 st.set_page_config(page_title="AI Outage Concierge", page_icon="\u26a1", layout="wide")
@@ -57,8 +61,38 @@ def main() -> None:
     st.sidebar.caption("Judges: change any input and watch every output update.")
 
     circuits = data.circuits()
-    if circuits:
-        circuit = st.sidebar.selectbox("Anonymized circuit / location", circuits)
+
+    st.sidebar.markdown("**Your location**")
+    st.sidebar.caption("Click the map, enter an address, or pick a circuit.")
+
+    # Address search (geocoded, falls back gracefully without internet).
+    addr = st.sidebar.text_input("Enter an address", key="addr_input",
+                                 placeholder="e.g. 210 Church Ave, Roanoke VA")
+    if st.sidebar.button("Find address", use_container_width=True) and addr.strip():
+        coords = geocode_address(addr)
+        if coords:
+            loc = locate_nearest(data, coords[0], coords[1], source="address")
+            st.session_state["located"] = loc
+            st.sidebar.success(f"Located. Nearest circuit: {loc.circuit or 'unknown'}")
+        else:
+            st.sidebar.warning(
+                "Couldn't geocode that address (no internet or no match). "
+                "Try clicking the map instead.")
+
+    located = st.session_state.get("located")
+
+    # Circuit is driven by the selected location if present; otherwise the
+    # dropdown lets the user pick directly.
+    if located and located.circuit:
+        circuit = located.circuit
+        st.sidebar.info(
+            f"Using location \u2192 circuit **{circuit}** "
+            f"({located.source.replace('_', ' ')})")
+        if st.sidebar.button("Clear location", use_container_width=True):
+            st.session_state.pop("located", None)
+            st.rerun()
+    elif circuits:
+        circuit = st.sidebar.selectbox("Or pick an anonymized circuit", circuits)
     else:
         circuit = st.sidebar.text_input("Anonymized circuit id", "CIR1")
         st.sidebar.info("No circuit list loaded; enter an id manually.")
@@ -83,8 +117,13 @@ def main() -> None:
     st.sidebar.divider()
     st.sidebar.subheader("Declared customer needs")
     st.sidebar.caption("Used as declared only \u2014 never inferred.")
-    is_critical = st.sidebar.checkbox("Critical location")
-    has_medical_need = st.sidebar.checkbox("Medical / life-support need")
+    loc_critical = bool(located.critical) if located else False
+    loc_medical = bool(located.medical) if located else False
+    if located and (loc_critical or loc_medical):
+        st.sidebar.caption("Pre-filled from the located premise's declared flags.")
+    is_critical = st.sidebar.checkbox("Critical location", value=loc_critical)
+    has_medical_need = st.sidebar.checkbox("Medical / life-support need",
+                                           value=loc_medical)
 
     # ---------------- Run the pipeline --------------------------------------
     risk = predict_risk(circuit, storm_severity, data.circuit_profile)
@@ -129,12 +168,14 @@ def main() -> None:
         render_dashboard(
             data=data, risk=risk, restoration=restoration,
             risk_expl=risk_expl, rest_expl=rest_expl, guidance=guidance,
-            alert=alert, messages=messages)
+            alert=alert, messages=messages, located=located)
 
 
 def render_dashboard(*, data, risk, restoration, risk_expl, rest_expl,
-                     guidance, alert, messages) -> None:
+                     guidance, alert, messages, located=None) -> None:
     """The structured, input-driven view."""
+    render_location_map(data, located)
+
     col1, col2 = st.columns([1, 1])
 
     with col1:
@@ -226,15 +267,54 @@ def render_dashboard(*, data, risk, restoration, risk_expl, rest_expl,
             "deterministic templates)."
         )
 
-    # ---------------- Map (geospatial context) -----------------------------
-    if not data.priority_points.empty or not data.damage.empty:
-        st.divider()
-        st.subheader("Geospatial context")
-        st.caption("Damage points and priority-facility areas (facility names "
-                   "intentionally omitted).")
-        map_df = data.damage.dropna(subset=["lat", "lon"])[["lat", "lon"]].head(2000)
-        if not map_df.empty:
-            st.map(map_df, size=10)
+def render_location_map(data, located) -> None:
+    """Interactive map: click to set location; shows damage + selection."""
+    st.subheader("\U0001f5fa\ufe0f  Find your location")
+    st.caption("Click anywhere on the map to use the nearest point on the "
+               "grid, or enter an address in the sidebar. Damage points are "
+               "shown; facility names are intentionally omitted.")
+
+    center = data_center(data)
+    start = [located.lat, located.lon] if located else list(center)
+    fmap = folium.Map(location=start, zoom_start=12, control_scale=True)
+
+    # Plot a capped sample of damage points (keeps the map responsive).
+    if not data.damage.empty and {"lat", "lon"}.issubset(data.damage.columns):
+        pts = data.damage.dropna(subset=["lat", "lon"]).head(1500)
+        for _, r in pts.iterrows():
+            folium.CircleMarker(
+                location=[r["lat"], r["lon"]], radius=2,
+                color="#c62828", fill=True, fill_opacity=0.6, weight=0,
+            ).add_to(fmap)
+
+    # Marker for the current selection.
+    if located:
+        folium.Marker(
+            [located.lat, located.lon],
+            tooltip=f"Selected \u2192 circuit {located.circuit or 'unknown'}",
+            icon=folium.Icon(color="blue", icon="home", prefix="fa"),
+        ).add_to(fmap)
+
+    result = st_folium(fmap, height=420, use_container_width=True,
+                       returned_objects=["last_clicked"])
+
+    clicked = result.get("last_clicked") if result else None
+    if clicked:
+        lat, lon = clicked["lat"], clicked["lng"]
+        prev = st.session_state.get("located")
+        # Only update if the click is meaningfully different (avoid rerun loop).
+        if not (prev and abs(prev.lat - lat) < 1e-7 and abs(prev.lon - lon) < 1e-7):
+            loc = locate_nearest(data, lat, lon, source="map_click")
+            st.session_state["located"] = loc
+            st.rerun()
+
+    if located:
+        dist = (f" (~{located.distance_m:,.0f} m away)"
+                if located.distance_m is not None else "")
+        st.success(
+            f"Selected location \u2192 **circuit {located.circuit or 'unknown'}**"
+            f"{dist}. {located.label}.")
+    st.divider()
 
 
 def render_chat(ctx: ChatContext) -> None:

@@ -75,6 +75,19 @@ CUSTOMER_COLS = {
     "city": "city",
 }
 
+# Only these attribute columns are read from the (large) shapefiles. Reading a
+# subset instead of the whole .dbf is the main startup-speed optimization.
+# Geometry is always read regardless of this list.
+DAMAGE_READ_COLS = [
+    "Outage_Num", "Incident_W", "Event", "Region", "District", "Crew_Area",
+    "Substation", "Circuit", "Report_Tim", "Status", "Repaired",
+    "Repaired_D", "Asset_Type", "Access_Iss", "Special_Eq",
+    "Longitude", "Latitude", "NEAR_DIST",
+]
+CUSTOMER_READ_COLS = [
+    "id", "critical_c", "special_op", "circuit_id", "kind_of_se", "city",
+]
+
 # --------------------------------------------------------------------------
 # Risk model configuration (transparent, tunable weights)
 # --------------------------------------------------------------------------
