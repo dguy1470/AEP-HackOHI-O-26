@@ -5,12 +5,12 @@ A small FastAPI service that:
   - proxies chat requests to Anthropic's Claude using a SERVER-SIDE key
     (so the static site no longer needs a bring-your-own-key field),
   - proxies address lookups to OpenStreetMap Nominatim with a proper User-Agent,
-  - accepts notification sign-ups (email via SMTP, SMS via an optional Twilio hook),
+  - accepts notification sign-ups (email via SMTP),
   - serves the static app in outage-concierge/.
 
 Nothing secret is committed: all credentials come from environment variables
-(see .env.example). The service runs fine with no credentials — email/SMS then
-log what they *would* send instead of failing, which keeps local demos simple.
+(see .env.example). The service runs fine with no credentials — email then
+logs what it *would* send instead of failing, which keeps local demos simple.
 """
 import os
 import json
@@ -52,10 +52,6 @@ SMTP_USER = os.getenv("SMTP_USER", "")
 SMTP_PASS = os.getenv("SMTP_PASS", "")
 SMTP_FROM = os.getenv("SMTP_FROM", SMTP_USER or "noreply@example.com")
 
-TWILIO_SID = os.getenv("TWILIO_ACCOUNT_SID", "")
-TWILIO_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "")
-TWILIO_FROM = os.getenv("TWILIO_FROM_NUMBER", "")
-
 # Allowed browser origins. "*" is fine for a local prototype; lock this down in prod.
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",")
 
@@ -63,7 +59,6 @@ ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",")
 ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "")
 
 EMAIL_LIVE = bool(SMTP_HOST and SMTP_FROM)
-SMS_LIVE = bool(TWILIO_SID and TWILIO_TOKEN and TWILIO_FROM)
 
 SYSTEM_PROMPT = (
     "You are the AI Outage Concierge for an electric utility, talking with a customer who may be "
@@ -87,8 +82,8 @@ app.add_middleware(
 @app.on_event("startup")
 def _startup():
     db.init_db()
-    log.info("DB ready. email_live=%s sms_live=%s chat=%s",
-             EMAIL_LIVE, SMS_LIVE, bool(ANTHROPIC_API_KEY))
+    log.info("DB ready. email_live=%s chat=%s",
+             EMAIL_LIVE, bool(ANTHROPIC_API_KEY))
     if not EMAIL_LIVE:
         log.info("Email is in DEMO mode — set SMTP_HOST/SMTP_USER/SMTP_PASS in .env to send for real.")
 
@@ -106,8 +101,7 @@ class ChatRequest(BaseModel):
 
 class Subscription(BaseModel):
     email: Optional[EmailStr] = None
-    phone: Optional[str] = None
-    channels: list[str] = Field(default_factory=list)  # any of: email, sms
+    channels: list[str] = Field(default_factory=lambda: ["email"])  # email only
     area: str = ""  # a free-text label like "P-ABC123" or a town
 
 
@@ -192,62 +186,58 @@ def send_email(to: str, subject: str, body: str) -> bool:
         raise
 
 
-def send_sms(to: str, body: str) -> bool:
-    if not SMS_LIVE:
-        log.info("[sms demo] would text %s: %s", to, body)
-        db.log_send("sms", to, "", body, "demo", "Twilio not configured")
-        return False
-    url = f"https://api.twilio.com/2010-04-01/Accounts/{TWILIO_SID}/Messages.json"
-    try:
-        with httpx.Client(timeout=15) as client:
-            r = client.post(url, data={"From": TWILIO_FROM, "To": to, "Body": body},
-                            auth=(TWILIO_SID, TWILIO_TOKEN))
-        ok = r.status_code in (200, 201)
-        db.log_send("sms", to, "", body, "sent" if ok else "error",
-                    "" if ok else f"HTTP {r.status_code}: {r.text[:200]}")
-        return ok
-    except Exception as e:
-        db.log_send("sms", to, "", body, "error", str(e))
-        log.warning("[sms error] %s: %s", to, e)
-        raise
-
-
 @app.post("/api/subscribe")
 async def subscribe(sub: Subscription):
-    if not sub.channels:
-        raise HTTPException(400, "Pick at least one channel (email or sms).")
+    if not sub.email:
+        raise HTTPException(400, "An email address is required to sign up.")
     welcome = (
         "You're signed up for Outage Concierge alerts"
         + (f" for {sub.area}" if sub.area else "")
         + ". We'll let you know before and during any outage. Reply STOP to opt out."
     )
-    if "email" in sub.channels and not sub.email:
-        raise HTTPException(400, "Email channel selected but no email provided.")
-    if "sms" in sub.channels and not sub.phone:
-        raise HTTPException(400, "SMS channel selected but no phone provided.")
-    # Persist the subscriber first, so they're saved even if the welcome message fails.
-    db.upsert_subscriber(sub.email, sub.phone, sub.channels, sub.area)
+    # Persist the subscriber first, so they're saved even if the welcome email fails.
+    db.upsert_subscriber(sub.email, None, ["email"], sub.area)
     results = {}
-    if "email" in sub.channels:
-        try:
-            results["email"] = send_email(sub.email, "Outage alerts are on", welcome)
-        except Exception as e:
-            results["email"] = False
-            results["email_error"] = str(e)
-    if "sms" in sub.channels:
-        try:
-            results["sms"] = send_sms(sub.phone, "⚡ " + welcome)
-        except Exception as e:
-            results["sms"] = False
-            results["sms_error"] = str(e)
+    try:
+        results["email"] = send_email(sub.email, "Outage alerts are on", welcome)
+    except Exception as e:
+        results["email"] = False
+        results["email_error"] = str(e)
     return {"ok": True, "saved": True, "delivered": results,
-            "note": "Channels showing false are not configured on this server (demo mode)."}
+            "note": "If email shows false, the server is in demo mode (no SMTP configured)."}
 
 
 @app.post("/api/unsubscribe")
 async def unsubscribe(sub: Subscription):
-    db.deactivate(email=sub.email, phone=sub.phone)
+    db.deactivate(email=sub.email)
     return {"ok": True}
+
+
+# Public test-email endpoint (no admin token). Lightly rate-limited per address.
+_last_test = {}
+TEST_COOLDOWN_S = int(os.getenv("TEST_COOLDOWN_S", "30"))
+
+
+class PublicTest(BaseModel):
+    email: EmailStr
+
+
+@app.post("/api/test-email")
+async def public_test_email(req: PublicTest):
+    now = time.time()
+    if now - _last_test.get(req.email, 0) < TEST_COOLDOWN_S:
+        raise HTTPException(429, "Please wait a moment before sending another test.")
+    _last_test[req.email] = now
+    body = ("This is a test message from the Outage Concierge. If you received it, "
+            "email alerts are working. We'll only message you about outages you signed up for.")
+    if not EMAIL_LIVE:
+        db.log_send("email", req.email, "Outage Concierge test", body, "demo", "SMTP not configured")
+        return {"ok": True, "sent": False, "note": "Server is in demo mode — no SMTP configured."}
+    try:
+        send_email(req.email, "Outage Concierge test email", body)
+    except Exception as e:
+        raise HTTPException(502, f"Send failed: {e}")
+    return {"ok": True, "sent": True}
 
 
 # ---- Storm alert: the frontend simulation calls this when the storm reaches an area ----
@@ -268,19 +258,16 @@ async def storm_alert(a: StormAlert):
     now = time.time()
     key = a.area or "*all*"
     if now - _last_alert.get(key, 0) < ALERT_COOLDOWN_S:
-        return {"ok": True, "skipped": "cooldown", "sent": {"email": 0, "sms": 0}}
+        return {"ok": True, "skipped": "cooldown", "sent": {"email": 0}}
     _last_alert[key] = now
-    sent = {"email": 0, "sms": 0, "errors": 0}
+    sent = {"email": 0, "errors": 0}
     for s in db.list_subscribers():
         # Match the subscriber's area if one was given on both sides; otherwise alert all.
         if a.area and s.get("area") and s["area"] != a.area:
             continue
-        chans = (s["channels"] or "").split(",")
         try:
-            if "email" in chans and s["email"] and send_email(s["email"], a.subject, a.message):
+            if s["email"] and send_email(s["email"], a.subject, a.message):
                 sent["email"] += 1
-            if "sms" in chans and s["phone"] and send_sms(s["phone"], a.message):
-                sent["sms"] += 1
         except Exception:
             sent["errors"] += 1
     return {"ok": True, "sent": sent}
@@ -332,18 +319,13 @@ class Broadcast(BaseModel):
 
 @app.post("/api/broadcast")
 async def broadcast(b: Broadcast, x_admin_token: Optional[str] = Header(default=None)):
-    """Send a message to every active subscriber on their chosen channels."""
+    """Email a message to every active subscriber."""
     _require_admin(x_admin_token)
-    sent = {"email": 0, "sms": 0, "errors": 0}
+    sent = {"email": 0, "errors": 0}
     for s in db.list_subscribers():
-        chans = (s["channels"] or "").split(",")
         try:
-            if "email" in chans and s["email"]:
-                if send_email(s["email"], b.subject, b.message):
-                    sent["email"] += 1
-            if "sms" in chans and s["phone"]:
-                if send_sms(s["phone"], b.message):
-                    sent["sms"] += 1
+            if s["email"] and send_email(s["email"], b.subject, b.message):
+                sent["email"] += 1
         except Exception:
             sent["errors"] += 1
     return {"ok": True, "sent": sent}
@@ -355,7 +337,6 @@ async def health():
         "ok": True,
         "chat": bool(ANTHROPIC_API_KEY),
         "email": EMAIL_LIVE,
-        "sms": SMS_LIVE,
     }
 
 

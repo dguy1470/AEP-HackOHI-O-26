@@ -40,8 +40,27 @@ nav.tabs a.active{background:var(--ac);color:#fff;box-shadow:0 2px 8px rgba(192,
 main{max-width:1180px;margin:auto;padding:20px 16px 40px}
 .view>div{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:18px;align-items:start}
 @media(max-width:900px){.view>div{grid-template-columns:1fr}}
-/* Single-column (centered) views for chat and alerts */
-#view-concierge>div,#view-alerts>div{grid-template-columns:minmax(0,720px);justify-content:center}
+/* Single-column (centered) views for alerts */
+#view-alerts>div{grid-template-columns:minmax(0,720px);justify-content:center}
+
+/* ---- Concierge sidebar (always-on, right side) ---- */
+:root{--sidew:360px}
+#sidebar{position:fixed;top:0;right:0;bottom:0;width:var(--sidew);background:var(--card);border-left:1px solid var(--bd);box-shadow:-4px 0 24px rgba(16,26,40,.08);display:flex;flex-direction:column;z-index:700;transition:transform .25s ease}
+#sidebar header.sbhead{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;background:linear-gradient(100deg,var(--brand),var(--brand2));color:#fff}
+#sidebar header.sbhead h2{margin:0;font-size:15px;color:#fff}
+#sidebar header.sbhead button{background:rgba(255,255,255,.14);border:none;color:#fff;border-radius:8px;padding:5px 9px}
+#sidebar .sbbody{flex:1;overflow:auto;padding:14px;display:flex;flex-direction:column}
+#sidebar #chat{flex:1;max-height:none}
+/* Make room for the sidebar on wide screens (only while it's open) */
+@media(min-width:1101px){body{padding-right:var(--sidew)}nav.tabs .wrap,header.topbar .wrap,main{max-width:none;margin-right:0}}
+/* Collapsed state: slide the sidebar off and reclaim the space, at any width */
+#sidebar.collapsed{transform:translateX(100%)}
+body.sb-collapsed{padding-right:0}
+/* Floating button to reopen the concierge; shown when collapsed or on narrow screens */
+#sbToggle{position:fixed;right:16px;bottom:16px;z-index:800;border-radius:99px;padding:12px 16px;background:var(--ac);color:#fff;border:none;box-shadow:0 4px 14px rgba(192,38,45,.4);font-weight:700;display:none}
+body.sb-collapsed #sbToggle{display:block}
+/* On narrow screens the sidebar is off by default; the floating button opens it */
+@media(max-width:1100px){#sidebar{transform:translateX(100%)}#sidebar.open{transform:none}#sbToggle{display:block}}
 .view.active{animation:fade .25s ease}
 @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 
@@ -88,14 +107,25 @@ details>*:not(summary){margin-bottom:12px}
 #chips{margin-top:8px}#chips button{border-radius:99px;font-size:13px;padding:7px 13px}
 #go{background:var(--ac);border-color:var(--ac);color:#fff;font-weight:700}
 .view{display:none}.view.active{display:block}
+/* Confirmed facts vs. model estimates vs. your actions — color-coded tags (challenge req) */
+.tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:99px;margin-bottom:4px}
+.tag-fact{background:#e6f0fb;color:#13426e}.tag-est{background:#fdf1dc;color:#8a5a00}.tag-act{background:#e4f5ec;color:#15713f}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .tag-fact{background:#132a40;color:#8fc2f0}:root:not([data-theme="light"]) .tag-est{background:#3a2f12;color:#e8bd2e}:root:not([data-theme="light"]) .tag-act{background:#14301f;color:#49c88a}}
+.seg{border-left:3px solid var(--bd);padding:2px 0 2px 12px;margin:10px 0}
+.seg.fact{border-color:#13426e}.seg.est{border-color:#c4920a}.seg.act{border-color:#15713f}
+.explain{background:var(--bg);border:1px solid var(--bd);border-radius:var(--r2);padding:12px;margin-top:12px}
+.explain b{font-size:13px}.explain ul{margin:6px 0 0}.explain li{font-size:13px}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+a.skip{position:absolute;left:-999px;top:0;background:var(--ac);color:#fff;padding:8px 12px;border-radius:0 0 8px 0;z-index:999}
+a.skip:focus{left:0}
 </style></head><body>
-<header class="topbar"><div class="wrap"><div class="logo">⚡</div><div><h1>Outage Concierge</h1><p>Check your storm risk, see how long power might be out, and get a clear plan — in plain language. Prototype using Appalachian Power data; estimates only, not confirmed outage info.</p></div></div></header>
-<nav class="tabs"><div class="wrap">
+<a href="#view-map" class="skip">Skip to main content</a>
+<header class="topbar"><div class="wrap"><div class="logo" aria-hidden="true">⚡</div><div><h1>Outage Concierge</h1><p>Check your storm risk, see how long power might be out, and get a clear plan — in plain language. Prototype using Appalachian Power data; estimates only, not confirmed outage info.</p></div></div></header>
+<nav class="tabs" aria-label="Sections"><div class="wrap">
 <a href="#map" data-view="map">🗺️ Map &amp; Risk</a>
 <a href="#storm" data-view="storm">🌪️ Storm</a>
 <a href="#prepare" data-view="prepare">🧰 Prepare</a>
 <a href="#alerts" data-view="alerts">🔔 Alerts</a>
-<a href="#concierge" data-view="concierge">💬 Concierge</a>
 </div></nav>
 <main>
 
@@ -103,7 +133,8 @@ details>*:not(summary){margin-bottom:12px}
 <section class="view" id="view-map"><div>
 <section class="card"><h2>Start here: where are you?</h2>
 <p class="hint">Type your address (or tap the map) and we’ll check the location nearest you.</p>
-<div class="row addr-row" style="margin-bottom:8px"><input id="addr" placeholder="Enter your address or town…" style="flex:1"><button id="findbtn">Check my area</button></div>
+<div class="row addr-row" style="margin-bottom:8px"><input id="addr" placeholder="Enter your address or town…" style="flex:1" aria-label="Enter your address or town"><button id="findbtn">Check my area</button></div>
+<div class="row" style="margin-bottom:8px"><button id="demoHigh" title="Jump to a high-risk example">▶ Demo: high-risk home</button><button id="demoLS" title="Example of a priority / life-support customer">🏥 Demo: life-support customer</button></div>
 <div id="mapSlotMap"><div id="map" aria-label="Map of your area colored by outage risk"></div></div>
 <div class="mut" id="geomsg" style="margin-top:6px"></div>
 <div class="mut lg">How risky:<span style="background:var(--lo)"></span>Low<span style="background:var(--md)"></span>Medium<span style="background:var(--el)"></span>Higher<span style="background:var(--hi)"></span>High<span style="background:none;border:1px solid var(--tx)"></span>Your spot</div>
@@ -111,8 +142,8 @@ details>*:not(summary){margin-bottom:12px}
 <details><summary>⚙ Advanced: pick an exact location</summary>
 <div class="row"><label for="pick">Location</label><select id="pick"></select><label><input type="checkbox" id="dm"> show past storm damage</label></div></details>
 <p class="hint" style="margin-top:8px">Want to watch a storm move through? See the <a href="#storm">Storm</a> tab.</p></section>
-<section class="card"><h2>Your outage risk</h2><div id="risk"></div>
-<p class="hint">Next: make a plan on the <a href="#prepare">Prepare</a> tab, or set up <a href="#alerts">Alerts</a>.</p></section>
+<section class="card"><h2>Your outage risk</h2><div id="risk" role="region" aria-label="Outage risk result" aria-live="polite"></div>
+<p class="hint">Next: make a plan on the <a href="#prepare">Prepare</a> tab, or set up <a href="#alerts">Alerts</a>. The concierge is always on the right if you have questions.</p></section>
 </div></section>
 
 <!-- ===== STORM ===== -->
@@ -123,19 +154,21 @@ details>*:not(summary){margin-bottom:12px}
 <div class="row" style="margin-top:6px"><label><input type="checkbox" id="zones" checked> highlight hardest-hit areas</label><label><input type="checkbox" id="track" checked> show forecast path</label></div>
 <div class="row" style="margin-top:6px"><label>Strength<input type="range" id="sintens" min="0.3" max="2" step="0.1" value="1.1"></label><label>Size<input type="range" id="ssize" min="4" max="40" step="1" value="14"></label><label>Speed<input type="range" id="sspeed" min="1" max="8" step="1" value="3"></label><label>Direction<input type="range" id="shdg" min="0" max="359" step="5" value="75"></label></div>
 <div id="mapSlotStorm"></div></section>
-<section class="card"><h2>Risk right now</h2><div id="risk-storm" class="mut">Pick a location on the Map tab to see live risk here.</div></section>
+<section class="card"><h2>Your outage risk</h2>
+<p class="hint">Live risk for your selected location — it updates as the storm moves. Pick a spot on the <a href="#map">Map</a> tab.</p>
+<div id="risk-storm" class="mut" role="region" aria-label="Outage risk result" aria-live="polite">Pick a location on the Map tab to see your live risk here.</div></section>
 </div></section>
 
 <!-- ===== PREPARE ===== -->
 <section class="view" id="view-prepare"><div>
-<section class="card"><h2>If the power goes out</h2><div id="rest"></div>
+<section class="card"><h2>If the power goes out</h2><div id="rest" role="region" aria-label="Estimated restoration time" aria-live="polite"></div>
 <details><summary>What if…? (adjust the estimate)</summary>
 <p class="hint">These are advanced controls. Change how much damage or how many repair crews, and the estimate updates.</p>
 <div class="step" id="steps"></div>
 <div class="row"><label for="crews">Repair crews</label><input type="number" id="crews" min="1" max="12" value="3" style="width:64px"><label><input type="checkbox" id="acc"> hard to reach (trees, terrain)</label></div></details></section>
 <section class="card"><h2>Get ready</h2>
 <p class="hint">Tell us what applies to you so your plan fits. We only use what you check here.</p>
-<div class="row"><label><input type="checkbox" id="med"> someone needs power for medical equipment</label><label><input type="checkbox" id="mob"> mobility or accessibility needs</label><label><input type="checkbox" id="crit"> this is a critical facility</label></div><div id="prep"></div></section>
+<div class="row"><label><input type="checkbox" id="med"> someone needs power for medical equipment</label><label><input type="checkbox" id="mob"> mobility or accessibility needs</label><label><input type="checkbox" id="crit"> this is a critical facility</label></div><div id="prep" role="region" aria-label="Preparation steps" aria-live="polite"></div></section>
 <details><summary>How this works & what’s behind the numbers</summary>
 <div class="cols"><div><b>What’s real</b><br>Your area’s past storm damage and the equipment that feeds your power. Not the live grid.</div><div><b>What’s estimated</b><br>Risk and repair-time ranges come from past storms. Treat them as rough guides, not promises.</div><div><b>Your part</b><br>Follow the checklists and alerts to stay safe and prepared before and during an outage.</div></div><p class="mut" id="model"></p></details>
 </div></section>
@@ -148,28 +181,25 @@ details>*:not(summary){margin-bottom:12px}
 <p class="hint">Turn on alerts and we’ll pop a simple message if the storm heads your way. No account, no sign-up.</p>
 <div class="row"><button id="notifOn">Turn on alerts</button><button id="notifTest">Send a test alert</button><label><input type="checkbox" id="notifStorm" checked> alert me when the storm nears my area</label></div></div>
 <div id="subBox" style="display:none;margin-top:8px;padding:10px;border:1px solid var(--bd);border-radius:8px">
-<b>✉️ Email & text alerts</b>
-<p class="hint">Prefer email or a text? Sign up and we’ll reach you there too.</p>
-<div class="row"><label><input type="checkbox" id="subEmailOn"> Email</label><input id="subEmail" type="email" placeholder="you@example.com" style="flex:1;min-width:140px"></div>
-<div class="row" style="margin-top:6px"><label><input type="checkbox" id="subSmsOn"> Text</label><input id="subPhone" type="tel" placeholder="+1 555 123 4567" style="flex:1;min-width:140px"></div>
-<div class="row" style="margin-top:6px"><button id="subBtn">Sign me up</button><span class="mut" id="subMsg"></span></div></div>
+<b>✉️ Email alerts</b>
+<p class="hint">Prefer email? Sign up and we’ll send alerts there too.</p>
+<div class="row"><label for="subEmail" style="margin:0">Email address</label><input id="subEmail" type="email" placeholder="you@example.com" style="flex:1;min-width:160px"></div>
+<div class="row" style="margin-top:6px"><button id="subBtn">Sign me up</button><button id="subTest" title="Send a one-off test email to the address above">Send test email</button><span class="mut" id="subMsg" aria-live="polite"></span></div></div>
 <details><summary>See example alert messages</summary><div class="row" id="mt"></div><div class="msg" id="msg"></div></details></section>
 </div></section>
 
-<!-- ===== CONCIERGE ===== -->
-<section class="view" id="view-concierge"><div>
-<section class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0">💬 Talk to the concierge</h2><button id="aiToggle" title="Connect Claude for smarter, real conversations" style="font-size:12px;padding:3px 8px">⚙ AI settings</button></div>
-<p class="hint">Worried or unsure? Ask anything — I’ll explain things simply and help you make a plan.</p>
-<div id="aiPanel" style="display:none;margin:8px 0;padding:8px;border:1px solid var(--bd);border-radius:8px">
-<label for="aiKey">Anthropic API key <span class="mut">(stored only in this browser, never uploaded)</span></label>
-<input id="aiKey" type="password" placeholder="sk-ant-…" style="width:100%">
-<div class="row" style="margin-top:6px"><label style="margin:0">Model <input id="aiModel" value="claude-3-5-haiku-latest" style="width:190px"></label><button id="aiSave">Save</button><span class="mut" id="aiStatus"></span></div>
-<p class="mut" style="margin:6px 0 0">Get a key at console.anthropic.com. Without a key, the concierge still works in a simpler offline mode.</p></div>
-<div id="chat" aria-live="polite"></div>
-<div class="row" id="chips"></div><div class="row" style="margin-top:6px"><input id="q" placeholder="Ask a question…" style="flex:1"><button id="go">Ask</button></div></section>
-</div></section>
-
 </main>
+
+<!-- ===== CONCIERGE SIDEBAR (always on, right side) ===== -->
+<aside id="sidebar" aria-label="Concierge assistant">
+<header class="sbhead"><h2>💬 Concierge</h2><button id="sbClose" title="Hide" aria-label="Hide concierge">✕</button></header>
+<div class="sbbody">
+<p class="hint">Worried or unsure? Ask anything — I’ll explain things simply.</p>
+<div id="chat" role="log" aria-live="polite" aria-label="Conversation with the concierge"></div>
+<div class="row" id="chips" style="margin-top:8px"></div>
+<div class="row" style="margin-top:8px"><input id="q" placeholder="Ask a question…" style="flex:1" aria-label="Ask the concierge a question"><button id="go">Ask</button></div>
+</div></aside>
+<button id="sbToggle" aria-label="Open concierge">💬 Ask</button>
 <script>
 const D=/*DATA*/;const $=s=>document.querySelector(s);
 const SEV=[["Calm — no storm",-3,0],["Light storm",-1.2,2],["Moderate storm",-.5,6],["Feb 2025–like storm",0,12],["Severe storm",.8,24]];
@@ -179,8 +209,11 @@ const NM=["Storms have caused damage nearby before","Your area’s past outage h
 const S={i:0,sev:3,q:{pole:1,wire:2,xfmr:1,fuse:1,rec:0},msg:0};let sel=[];
 const B=[-80.27,-79.63,36.98,37.49];
 const col=n=>getComputedStyle(document.documentElement).getPropertyValue(BANDS[n][2]).trim()||"#888";
-// Leaflet map over OpenStreetMap tiles. Markers are the anonymized premises (already rounded to ~400 m).
-const map=L.map("map",{zoomControl:true}).fitBounds([[B[2],B[0]],[B[3],B[1]]]);
+// Fit the initial view to where the data actually is (trim outliers via 1st–99th percentile).
+function dataBounds(){const lons=D.rows.map(r=>r[1]).sort((a,b)=>a-b),lats=D.rows.map(r=>r[2]).sort((a,b)=>a-b),n=lons.length,q=(a,p)=>a[Math.min(n-1,Math.max(0,Math.floor(p*n)))];
+return[[q(lats,.01),q(lons,.01)],[q(lats,.99),q(lons,.99)]]}
+// Leaflet map over Esri tiles. Markers are the anonymized premises.
+const map=L.map("map",{zoomControl:true}).fitBounds(dataBounds(),{padding:[20,20]});
 L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",{maxZoom:19,attribution:"Tiles © Esri — Source: Esri, HERE, Garmin, USGS, NGA, EPA, NPS"}).addTo(map);
 const cvRenderer=L.canvas({padding:.5});// canvas renderer scales to tens of thousands of points
 const dmgLayer=L.layerGroup();let markers=[],selMarker=null,addrMarker=null;
@@ -216,7 +249,10 @@ function conf(r){const n=D.circ[r[3]][2],d=r[11];return n>=100&&d<800?2:n>=20&&d
 const CN=["Low","Medium","High"];
 function fmt(h){return h<36?Math.round(h)+" hours":(h/24).toFixed(1)+" days"}
 // Build one circle marker per premise once; recolor them on each draw().
-function buildMarkers(){D.rows.forEach((r,i)=>{const m=L.circleMarker([r[2],r[1]],{renderer:cvRenderer,radius:5,weight:1,color:"#0003",fillOpacity:.8});m.on("click",()=>{S.i=i;$("#pick").value=i;upd();map.panTo([r[2],r[1]])});m.bindTooltip("P-"+r[0]);m.addTo(map);markers.push(m)})}
+// Lean markers: no per-marker stroke, tooltip, or click handler (117k of those is slow).
+// Selection happens via one map-level click that uses the grid index to find the nearest node.
+function buildMarkers(){const opts={renderer:cvRenderer,radius:4,weight:0,fillOpacity:.85};
+D.rows.forEach(r=>{const m=L.circleMarker([r[2],r[1]],opts);m.addTo(map);markers.push(m)})}
 function draw(){if(storm.on)recolor();else recolorAll();
 // Highlight the selected premise.
 const r=D.rows[S.i];if(selMarker)selMarker.remove();selMarker=L.circleMarker([r[2],r[1]],{radius:10,weight:3,color:getComputedStyle(document.body).color,fill:false}).addTo(map);
@@ -235,13 +271,13 @@ try{const url=backend.up?"/api/geocode?q="+encodeURIComponent(q):"https://nomina
 if(!js.length){$("#geomsg").textContent="Couldn’t find that address. Try adding a city or ZIP.";return}
 snapTo(+js[0].lat,+js[0].lon,js[0].display_name.split(",").slice(0,2).join(","));
 }catch(err){$("#geomsg").textContent="Address lookup failed (needs an internet connection). You can still click a point on the map."}}
-// Reverse geocode a clicked point to an address, then snap.
-async function clickToAddress(lat,lon){$("#geomsg").textContent="Finding the address at that point…";
+// Clicking the map: snap to the nearest premise INSTANTLY (grid lookup), then fill in the
+// street address in the background so selection never waits on the network.
+async function clickToAddress(lat,lon){snapTo(lat,lon,`${lat.toFixed(4)}, ${lon.toFixed(4)}`);
 try{const url=backend.up?`/api/reverse?lat=${lat}&lon=${lon}`:`https://nominatim.openstreetmap.org/reverse?format=json&zoom=18&lat=${lat}&lon=${lon}`;const res=await fetch(url,{headers:{"Accept":"application/json"}});const js=await res.json();
-const label=js&&js.display_name?js.display_name.split(",").slice(0,3).join(","):`${lat.toFixed(4)}, ${lon.toFixed(4)}`;
-if(js&&js.display_name)$("#addr").value=js.display_name;
-snapTo(lat,lon,label);
-}catch(err){snapTo(lat,lon,`${lat.toFixed(4)}, ${lon.toFixed(4)}`)}}
+if(js&&js.display_name){$("#addr").value=js.display_name;const r=D.rows[S.i],bd=distKm(lat,lon,r[2],r[1]);
+$("#geomsg").innerHTML=`📍 ${js.display_name.split(",").slice(0,3).join(",")} · nearest point ~<b>${bd<1?Math.round(bd*1000)+" m":bd.toFixed(1)+" km"}</b> away.`}
+}catch(err){}}
 map.on("click",e=>{if(storm.place){storm.lat=e.latlng.lat;storm.lon=e.latlng.lng;storm.t=0;storm.place=false;$("#stormplace").classList.remove("on");drawStorm();if(storm.on)recolor();else draw();return}clickToAddress(e.latlng.lat,e.latlng.lng)});
 buildMarkers();buildGrid();
 $("#findbtn").onclick=findNearest;$("#addr").onkeydown=e=>{if(e.key=="Enter")findNearest()};
@@ -318,25 +354,36 @@ let t=R.wait,out=[];plan.forEach(p=>{const u=U.find(x=>x[0]==p[0]);if(S.q[p[0]]>
 function upd(){const r=D.rows[S.i],k=risk(r,S.sev),cf=conf(r),nd=needs(),R=rest(r),bn=BANDS[k.band],cc=D.circ[r[3]];
 const PLAIN=["Good news — you’re at low risk right now.","There’s a moderate chance of an outage here.","Outages are fairly likely in this area.","Outages are very likely here — let’s get you ready."];
 const SURE=["We’re not very sure about this one","We’re fairly sure about this","We’re confident about this"];
-let h=`<p class="big-risk"><b>${PLAIN[k.band]}</b></p><div class="row"><span class="band" style="background:${col(k.band)}">${bn[0]}</span><b>${Math.round(k.p*100)}% chance</b><span class="mut">· ${SURE[cf].toLowerCase()}</span></div>`;
+let h=`<span class="tag tag-est">Model estimate</span><p class="big-risk"><b>${PLAIN[k.band]}</b></p><div class="row"><span class="band" style="background:${col(k.band)}">${bn[0]}</span><b>${Math.round(k.p*100)}% chance</b><span class="mut">· ${SURE[cf].toLowerCase()}</span></div>`;
 if(storm.on){const sd=distKm(storm.lat,storm.lon,r[2],r[1]);const near=forecast(10).some(p=>distKm(p[0],p[1],r[2],r[1])<storm.rad);
 h+=`<div class="warn"><b>🌪 Live storm:</b> eye is <b>${sd<1?Math.round(sd*1000)+" m":sd.toFixed(1)+" km"}</b> from this location${sd<storm.rad?" — you are inside the impact zone now":near?" and forecast to pass within range":""}. Risk above reflects the storm’s current position and updates as it moves.</div>`}
 h+=`<h3>Why</h3>`;const sb=storm.on?stormBoost(r):0;const items=k.c.map((v,i)=>[NM[i],v]).concat([["Storm severity ("+SEV[S.sev][0]+")",SEV[S.sev][1]]]).concat(sb>0?[["Approaching storm (live)",sb]]:[]).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).slice(0,5);
 items.forEach(([n,v])=>{const w=Math.min(48,Math.abs(v)*80);h+=`<div class="mut">${v>=0?"↑ raises":"↓ lowers"} risk · ${n}</div><div class="bar"><i style="${v>=0?"left:50%":"right:50%"};width:${w}%;background:${v>=0?"var(--hi)":"var(--lo)"}"></i></div>`});
-h+=`<p class="mut">${r[11]<1000?"Storms have caused damage very close to you before.":"No recorded storm damage right next to you."} ${r[4]?"Your power lines run overhead, which storms can hit more easily.":"Your lines are underground, which is usually better protected."}</p>`;
+// Confirmed facts (straight from the data, not modeled).
+h+=`<div class="seg fact"><span class="tag tag-fact">Confirmed facts</span><div class="mut">${r[11]<1000?"Storms have caused damage very close to you before.":"No recorded storm damage right next to you."} ${r[4]?"Your power lines run overhead, which storms can hit more easily.":"Your lines are underground, which is usually better protected."} Your circuit has ${cc[2]} past damage record${cc[2]==1?"":"s"} on file.</div></div>`;
 if(cf==0)h+=`<div class="warn"><b>We’re not very sure here:</b> there isn’t much history near this spot, so this number is a rough guess. For anything important, check your utility’s outage map or call them directly.</div>`;
+// Explainability panel — surfaced, not buried (Responsible AI).
+const topFactor=items.length?items[0][0].toLowerCase():"local history";
+h+=`<div class="explain"><b>🔍 How to read this</b>
+<ul>
+<li><b>Confidence:</b> ${SURE[cf]} (based on how much nearby history we have).</li>
+<li><b>Biggest factor:</b> ${topFactor}.</li>
+<li><b>Assumes:</b> a ${SEV[S.sev][0].toLowerCase()}; travel &amp; setup add ~70% to raw repair time.</li>
+<li><b>Could change if:</b> the storm shifts, more damage is found, or crew availability changes.</li>
+<li><b>This is a model estimate</b>, not confirmed utility information.</li>
+</ul></div>`;
 $("#risk").innerHTML=h;
-// Mirror a short risk line onto the Storm tab.
-const rs=$("#risk-storm");if(rs)rs.innerHTML=`<p class="big-risk"><b>${PLAIN[k.band]}</b></p><div class="row"><span class="band" style="background:${col(k.band)}">${bn[0]}</span><b>${Math.round(k.p*100)}% chance</b></div>`;
-const ST=steps(r,R);let t=`<p style="font-size:20px;margin:2px 0">Power back in about <b>${fmt(R.lo)} – ${fmt(R.hi)}</b></p><p class="hint">A rough estimate from the time an outage starts — often it’s quicker.</p><p class="mut" style="font-size:12px">Behind the math: ${R.H.toFixed(1)} work-hours × ${R.mult.toFixed(2)} for travel/setup ÷ ${R.cr} crew(s), plus ~${R.wait} h waiting for a crew.</p>`;
+// Mirror the full outage-risk report onto the Storm tab.
+const rs=$("#risk-storm");if(rs)rs.innerHTML=h;
+const ST=steps(r,R);let t=`<span class="tag tag-est">Model estimate</span><p style="font-size:20px;margin:2px 0">Power back in about <b>${fmt(R.lo)} – ${fmt(R.hi)}</b></p><p class="hint">A rough estimate from the time an outage starts — often it’s quicker. Not a confirmed utility restoration time.</p><p class="mut" style="font-size:12px">Behind the math: ${R.H.toFixed(1)} work-hours × ${R.mult.toFixed(2)} for travel/setup ÷ ${R.cr} crew(s), plus ~${R.wait} h waiting for a crew.</p>`;
 const dom=S.q.pole>=S.q.wire?"Damaged Pole":"Damaged Wire",hs=D.hist[dom];
 if(hs)t+=`<p class="mut" style="font-size:12px">For comparison, in the Feb 2025 storm most similar repairs nearby finished within about ${hs[1]} day(s).</p>`;
 t+=`<div class="tl">`+(ST.length?ST.map(s=>`<p><b>~${fmt(s[1])}</b> · ${s[0]}${s[2]?` <span class="mut">(≈${s[2]} homes helped)</span>`:""}</p>`).join(""):"<p>Nothing damaged in this scenario, so no repairs needed.</p>")+`</div><p class="mut">Crews fix the biggest problems first so the most homes get power back soonest. Yours comes on after the last step. This isn’t a confirmed time.</p>`;$("#rest").innerHTML=t;
 const L=[];if(k.band>=2)L.push("Charge phones and power banks now; set refrigerator to coldest setting.");else L.push("Charge phones and keep flashlights where you can find them.");
 L.push("Store about 1 gallon of water per person per day for 3 days; keep non-perishable food on hand.");if(R.hi>24)L.push("Plan for a long outage: coolers and ice, a battery radio, and a plan for warming or cooling your home safely.");
 if(nd.med)L.push("Medical equipment: ask your provider about backup power, and tell the utility about your needs. If it is life-threatening, call 911.");if(nd.mob)L.push("Mobility: charge mobility devices fully and arrange rides or help in advance. Stay on a floor you can leave safely.");if(nd.crit)L.push("Critical facility: confirm backup power and fuel, and contact your utility account representative before the storm.");
-$("#prep").innerHTML=`<div class="warn"><b>⚠ Safety:</b> Treat every downed line as live and stay at least 30 feet away. Call 911 and then your utility. Never run a generator indoors or in a garage.</div><ul>${L.map(x=>"<li>"+x+"</li>").join("")}</ul>`;
-const prio=nd.med||nd.crit||r[10],el=k.band>=1||prio||r[9],ch=prio?"Phone call + SMS + email":k.band>=2?"SMS + app push":"App push or email",tm=k.band>=2?"48 h, 24 h and 6 h before the storm":k.band==1?"24 h before the storm":"Optional: 12 h before the storm";
+$("#prep").innerHTML=`<span class="tag tag-act">Your actions</span><div class="warn" role="alert"><b>⚠ Safety:</b> Treat every downed line as live and stay at least 30 feet away. Call 911 and then your utility. Never run a generator indoors or in a garage.</div><ul>${L.map(x=>"<li>"+x+"</li>").join("")}</ul>`;
+const prio=nd.med||nd.crit||r[10],el=k.band>=1||prio||r[9],ch=prio?"Phone call + email + app push":k.band>=2?"Email + app push":"App push or email",tm=k.band>=2?"48 h, 24 h and 6 h before the storm":k.band==1?"24 h before the storm":"Optional: 12 h before the storm";
 const esc=[];if(prio&&R.hi>4)esc.push("Outage longer than 4 h → human welfare check");if(R.hi>48)esc.push("Estimate over 48 h → proactive call");if(cf==0)esc.push("Low confidence → route to an agent");esc.push("Estimate shifts by more than 2 h → update message");
 $("#alert").innerHTML=`<p><b>${el?"✅ You’d get proactive outage alerts":"ℹ️ Alerts are optional for you"}</b></p><p class="mut">${el?`We’d reach you by ${ch.toLowerCase()} and keep you posted ${tm.toLowerCase()}, plus whenever the estimate changes.`:"You can still opt in so you’re never left guessing — we’ll let you know before and during any outage."}</p>`;
 const id="P-"+r[0],etr=`${fmt(R.lo)} to ${fmt(R.hi)}`;const M=[["Pre-storm",`Storm alert (${id}): outages are ${bn[0]=="High"||bn[0]=="Elevated"?"likely":"possible"} in your area. Charge devices and stock water today. If a line is down, stay 30 ft away and call 911.`],["Outage confirmed",`We have confirmed an outage affecting your area. Crews are being assigned. Our early estimate is ${etr}, and we will update it as crews assess damage.`],["Estimate updated",`Update: damage assessment changed our estimate to about ${etr}. This is an estimate, not a guarantee. We will update again when it changes.`],["Restored",`Power has been restored to your area. If your lights are still out, check your breakers and report it to us. Thank you for your patience.`]];
@@ -347,15 +394,19 @@ $("#model").textContent=`Under the hood: a statistical model trained on ${D.n.to
 const C=document.createDocumentFragment();D.rows.forEach((r,i)=>{if(i<300||r[10]){const o=document.createElement("option");o.value=i;o.textContent=`P-${r[0]} · circuit C-${D.circ[r[3]][0]}${r[10]?" · declared life-support":""}`;C.appendChild(o)}});$("#pick").appendChild(C);
 $("#sev").innerHTML=SEV.map((s,i)=>`<option value="${i}">${s[0]}</option>`).join("");$("#sev").value=3;
 $("#steps").innerHTML=U.map(u=>`<div>${u[1]}<input type="number" min="0" max="20" id="q_${u[0]}" value="${S.q[u[0]]}"></div>`).join("");
-$("#pick").onchange=e=>{S.i=+e.target.value;upd()};$("#sev").onchange=e=>{S.sev=+e.target.value;baseCell=null;if(storm.on){recolorAll();recolor()}else recolorAll();if(storm.on||storm.t)drawZones();upd()};
-U.forEach(u=>$("#q_"+u[0]).oninput=e=>{S.q[u[0]]=Math.max(0,+e.target.value||0);upd()});["crews","acc","med","mob","crit","dm"].forEach(i=>$("#"+i).oninput=upd);addEventListener("resize",()=>map.invalidateSize());
+$("#pick").onchange=e=>{S.i=+e.target.value;upd()};
+U.forEach(u=>$("#q_"+u[0]).oninput=e=>{S.q[u[0]]=Math.max(0,+e.target.value||0);syncControls();upd()});["crews","acc","med","mob","crit","dm"].forEach(i=>$("#"+i).oninput=()=>{syncControls();upd()});addEventListener("resize",()=>map.invalidateSize());
+function applySev(v){S.sev=+v;$("#sev").value=v;baseCell=null;if(storm.on){recolorAll();recolor()}else recolorAll();if(storm.on||storm.t)drawZones();upd()}
+$("#sev").onchange=e=>applySev(e.target.value);
+// Kept as a safe no-op hook so other callers don't break (controls are single-source now).
+function syncControls(){$("#sev").value=S.sev}
 const QS=["Am I going to lose power?","How long might it be out?","What should I do to get ready?","I’m worried — can you help?"];
 $("#chips").innerHTML=QS.map(q=>`<button>${q}</button>`).join("");
 // ---- Conversational concierge: real Claude when a key is set, warm offline flow otherwise ----
 const escHtml=s=>s.replace(/[&<]/g,m=>m=="&"?"&amp;":"&lt;");
 const aiCfg=()=>({key:localStorage.getItem("ai_key")||"",model:localStorage.getItem("ai_model")||"claude-3-5-haiku-latest"});
 // If a backend is serving this page, prefer it (chat key stays server-side; no per-user key).
-let backend={chat:false,email:false,sms:false,up:false};
+let backend={chat:false,email:false,up:false};
 (async()=>{try{const r=await fetch("/api/health");if(r.ok){const j=await r.json();backend={...j,up:true};aiStatus();if(typeof revealSub==="function")revealSub()}}catch(e){}})();
 let history=[];// {role, content} pairs for the Claude conversation
 function bubble(who,text,cls){$("#chat").innerHTML+=`<p${cls?` class="${cls}"`:""}>${who?`<b>${who}:</b> `:""}${escHtml(text).replace(/\n/g,"<br>")}</p>`;$("#chat").scrollTop=1e5}
@@ -395,11 +446,8 @@ setTimeout(()=>{bubble("Concierge",a+"\n\n"+FOLLOW[offStep%FOLLOW.length]);offSt
 // ask() always prints the user's message once, then routes to Claude (backend or key) or offline.
 function ask(q){bubble("You",q,"u");const {key}=aiCfg();if(backend.chat||key)askAI(q);else askOffline(q)}
 $("#chips").querySelectorAll("button").forEach(b=>b.onclick=()=>ask(b.textContent));$("#go").onclick=()=>{const v=$("#q").value.trim();if(v){ask(v);$("#q").value=""}};$("#q").onkeydown=e=>{if(e.key=="Enter")$("#go").click()};
-// AI settings panel
-$("#aiToggle").onclick=()=>{const p=$("#aiPanel");p.style.display=p.style.display=="none"?"block":"none"};
-function aiStatus(){const{key,model}=aiCfg();$("#aiStatus").textContent=backend.chat?"Connected via server (no key needed)":key?("Connected · "+model):"Not connected (offline mode)";$("#aiKey").value=key;$("#aiModel").value=model}
-$("#aiSave").onclick=()=>{localStorage.setItem("ai_key",$("#aiKey").value.trim());localStorage.setItem("ai_model",$("#aiModel").value.trim()||"claude-3-5-haiku-latest");history=[];aiStatus();bubble("Concierge",$("#aiKey").value.trim()?"Thanks — I’m connected and ready to chat. How are you doing right now?":"Saved. I’ll keep helping in offline mode.")};
-aiStatus();
+// No settings UI: chat uses the backend when present, otherwise a friendly offline mode.
+function aiStatus(){}
 // ---- Real browser notifications (no backend needed) ----
 const canNotify="Notification"in window;
 // Short, plain messages anyone can understand.
@@ -418,31 +466,52 @@ let notifiedForStorm=false;
 function maybeStormNotify(){if(!$("#notifStorm").checked||!storm.on)return;const r=D.rows[S.i],d=distKm(storm.lat,storm.lon,r[2],r[1]);
 if(d<storm.rad&&!notifiedForStorm){notifiedForStorm=true;const msg=simpleMsg(Math.max(2,S.ctx?S.ctx.k.band:2));showNote("⚡ Storm reaching your area",msg);
 // Also email subscribers via the backend (if one is running). Server throttles duplicates.
-if(backend.up)fetch("/api/storm-alert",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({area:"",message:msg,subject:"⚡ Storm heading your way"})}).then(r=>r.json()).then(j=>{if(j&&j.sent&&(j.sent.email||j.sent.sms))bubble("Concierge","📧 Sent a storm warning email to subscribers.")}).catch(()=>{})}
+if(backend.up)fetch("/api/storm-alert",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({area:"",message:msg,subject:"⚡ Storm heading your way"})}).then(r=>r.json()).then(j=>{if(j&&j.sent&&j.sent.email)bubble("Concierge","📧 Sent a storm warning email to subscribers.")}).catch(()=>{})}
 if(d>=storm.rad*1.4)notifiedForStorm=false}
 notifState();
-// ---- Email / text sign-up (needs the backend to actually send) ----
+// ---- Email sign-up (needs the backend to actually send) ----
 function revealSub(){if(backend.up)$("#subBox").style.display="block"}
-$("#subBtn").onclick=async()=>{const channels=[];if($("#subEmailOn").checked)channels.push("email");if($("#subSmsOn").checked)channels.push("sms");
-if(!channels.length){$("#subMsg").textContent="Pick email, text, or both.";return}
+$("#subBtn").onclick=async()=>{const email=$("#subEmail").value.trim();
+if(!email){$("#subMsg").textContent="Enter an email address.";return}
 $("#subMsg").textContent="Signing you up…";
-try{const r=await fetch("/api/subscribe",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email:$("#subEmail").value.trim()||null,phone:$("#subPhone").value.trim()||null,channels,area:D.rows[S.i]?"P-"+D.rows[S.i][0]:""})});
+try{const r=await fetch("/api/subscribe",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email,channels:["email"],area:D.rows[S.i]?"P-"+D.rows[S.i][0]:""})});
 const j=await r.json();
 if(!r.ok){$("#subMsg").textContent=j.detail||"Sign-up failed.";return}
-const sent=Object.entries(j.delivered||{}).filter(([k,v])=>v).map(([k])=>k);
-$("#subMsg").textContent=sent.length?("✅ You’re signed up — check your "+sent.join(" and ")+"."):"✅ Saved. (Server is in demo mode, so no real message was sent.)";
+$("#subMsg").textContent=(j.delivered&&j.delivered.email)?"✅ You’re signed up — check your email.":"✅ Saved. (Server is in demo mode, so no real email was sent.)";
+}catch(e){$("#subMsg").textContent="Couldn’t reach the server."}};
+$("#subTest").onclick=async()=>{const email=$("#subEmail").value.trim();
+if(!email){$("#subMsg").textContent="Enter an email address to test.";return}
+$("#subMsg").textContent="Sending test email…";
+try{const r=await fetch("/api/test-email",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email})});
+const j=await r.json();
+if(!r.ok){$("#subMsg").textContent=j.detail||"Test failed.";return}
+$("#subMsg").textContent=j.sent?"✅ Test email sent — check your inbox (and spam).":"ℹ️ Server is in demo mode, so no real email went out.";
 }catch(e){$("#subMsg").textContent="Couldn’t reach the server."}};
 notifState();revealSub();
+// ---- One-click demo scenarios (make it easy for judges to see the range) ----
+function selectIdx(i){S.i=Math.max(0,i);$("#pick").value=S.i;if(typeof syncControls==="function")syncControls();upd();map.panTo([D.rows[S.i][2],D.rows[S.i][1]]);location.hash="#map"}
+$("#demoHigh").onclick=()=>{$("#sev").value=4;S.sev=4;baseCell=null;ensureBase();
+let bi=0,bp=-1;for(let i=0;i<D.rows.length;i++){const p=risk(D.rows[i],4).p;if(p>bp){bp=p;bi=i}}
+["med","mob","crit"].forEach(x=>$("#"+x).checked=false);recolorAll();selectIdx(bi);
+$("#geomsg").innerHTML="▶ <b>Demo:</b> one of the highest-risk homes in a severe storm. Try the Prepare and Alerts tabs."};
+$("#demoLS").onclick=()=>{const bi=D.rows.findIndex(r=>r[10]);$("#sev").value=3;S.sev=3;baseCell=null;recolorAll();
+$("#med").checked=true;$("#crit").checked=false;$("#mob").checked=false;selectIdx(bi>=0?bi:0);
+$("#geomsg").innerHTML="🏥 <b>Demo:</b> a declared life-support customer. Note the tailored prep steps and priority alerts — all without revealing who or where they are."};
 // ---- Simple hash router: show one view at a time, highlight its tab ----
-const VIEWS=["map","storm","prepare","alerts","concierge"];
+const VIEWS=["map","storm","prepare","alerts"];
 function showView(v){if(!VIEWS.includes(v))v="map";
 VIEWS.forEach(x=>$("#view-"+x).classList.toggle("active",x===v));
-document.querySelectorAll("nav.tabs a").forEach(a=>a.classList.toggle("active",a.dataset.view===v));
+document.querySelectorAll("nav.tabs a").forEach(a=>{const on=a.dataset.view===v;a.classList.toggle("active",on);if(on)a.setAttribute("aria-current","page");else a.removeAttribute("aria-current")});
 // The single map element moves into whichever tab needs it (Map or Storm).
 const slot=v==="storm"?$("#mapSlotStorm"):$("#mapSlotMap");const mapEl=$("#map");
 if(slot&&mapEl&&mapEl.parentNode!==slot)slot.appendChild(mapEl);
 // Leaflet must recompute size after its container becomes visible / moves.
 if(v==="map"||v==="storm")setTimeout(()=>map.invalidateSize(),30)}
+// Sidebar show/hide. ✕ collapses it (and reclaims the space) at any width; 💬 reopens it.
+function openSidebar(){$("#sidebar").classList.remove("collapsed");$("#sidebar").classList.add("open");document.body.classList.remove("sb-collapsed");setTimeout(()=>map&&map.invalidateSize(),260)}
+function closeSidebar(){$("#sidebar").classList.add("collapsed");$("#sidebar").classList.remove("open");document.body.classList.add("sb-collapsed");setTimeout(()=>map&&map.invalidateSize(),260)}
+$("#sbToggle").onclick=openSidebar;
+$("#sbClose").onclick=closeSidebar;
 function routeFromHash(){showView((location.hash||"#map").slice(1))}
 addEventListener("hashchange",routeFromHash);
 S.i=D.rows.slice(0,40).findIndex(r=>r[12].length>3);S.i=Math.max(0,S.i);$("#pick").value=S.i;upd();
