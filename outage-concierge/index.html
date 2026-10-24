@@ -180,7 +180,7 @@ a.skip:focus{left:0}
 <div class="row" style="justify-content:space-between"><b>🔔 Get notified in your browser</b><span class="mut" id="notifState"></span></div>
 <p class="hint">Turn on alerts and we’ll pop a simple message if the storm heads your way. No account, no sign-up.</p>
 <div class="row"><button id="notifOn">Turn on alerts</button><button id="notifTest">Send a test alert</button><label><input type="checkbox" id="notifStorm" checked> alert me when the storm nears my area</label></div></div>
-<div id="subBox" style="display:none;margin-top:8px;padding:10px;border:1px solid var(--bd);border-radius:8px">
+<div id="subBox" style="margin-top:8px;padding:10px;border:1px solid var(--bd);border-radius:8px">
 <b>✉️ Email alerts</b>
 <p class="hint">Prefer email? Sign up and we’ll send alerts there too.</p>
 <div class="row"><label for="subEmail" style="margin:0">Email address</label><input id="subEmail" type="email" placeholder="you@example.com" style="flex:1;min-width:160px"></div>
@@ -460,7 +460,7 @@ if(Notification.permission==="granted"){showNote("Alerts are on ✅","We’ll le
 const p=await Notification.requestPermission();notifState();
 if(p==="granted")showNote("Alerts are on ✅","We’ll let you know if a storm heads your way.");else if(p==="denied")$("#notifState").textContent="blocked (allow in browser settings)"}
 $("#notifOn").onclick=enableNotes;
-$("#notifTest").onclick=()=>{const k=S.ctx?S.ctx.k.band:0;if(!showNote("Outage Concierge",simpleMsg(k)))bubble("Concierge","Turn on browser alerts first (the ‘Turn on alerts’ button), then try the test again.")};
+$("#notifTest").onclick=async()=>{const k=S.ctx?S.ctx.k.band:0;const ns=$("#notifState");if(!canNotify){ns.textContent="❌ Not supported in this browser";return}if(Notification.permission==="denied"){ns.textContent="❌ Blocked — click the lock icon in your browser’s address bar, allow notifications, then try again";return}if(Notification.permission!=="granted"){ns.textContent="Asking for permission…";const p=await Notification.requestPermission();notifState();if(p!=="granted")return}const ok=showNote("Outage Concierge ✅",simpleMsg(k));ns.textContent=ok?"✅ Test alert sent — you should see it now":"❌ Notification didn’t fire; check browser settings"};
 // Fire an alert once when the moving storm first reaches the selected location.
 let notifiedForStorm=false;
 function maybeStormNotify(){if(!$("#notifStorm").checked||!storm.on)return;const r=D.rows[S.i],d=distKm(storm.lat,storm.lon,r[2],r[1]);
@@ -470,7 +470,7 @@ if(backend.up)fetch("/api/storm-alert",{method:"POST",headers:{"content-type":"a
 if(d>=storm.rad*1.4)notifiedForStorm=false}
 notifState();
 // ---- Email sign-up (needs the backend to actually send) ----
-function revealSub(){if(backend.up)$("#subBox").style.display="block"}
+function revealSub(){$("#subBox").style.display="block";if(!backend.up){const hint=document.createElement("p");hint.className="mut";hint.style="font-size:12px;margin:4px 0";hint.textContent="⚠️ The backend server isn’t running — sign-up will be saved but no real email will be sent. Run the backend to enable live email.";const box=$("#subBox");if(!box.querySelector(".backend-hint")){hint.className+=" backend-hint";box.insertBefore(hint,box.firstChild)}}}
 $("#subBtn").onclick=async()=>{const email=$("#subEmail").value.trim();
 if(!email){$("#subMsg").textContent="Enter an email address.";return}
 $("#subMsg").textContent="Signing you up…";

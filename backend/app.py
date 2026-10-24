@@ -171,19 +171,29 @@ def send_email(to: str, subject: str, body: str) -> bool:
     msg["To"] = to
     msg["Subject"] = subject
     msg.set_content(body)
-    try:
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as s:
-            s.starttls()
-            if SMTP_USER:
-                s.login(SMTP_USER, SMTP_PASS)
-            s.send_message(msg)
-        db.log_send("email", to, subject, body, "sent")
-        log.info("[email sent] %s", to)
-        return True
-    except Exception as e:
-        db.log_send("email", to, subject, body, "error", str(e))
-        log.warning("[email error] %s: %s", to, e)
-        raise
+    last_err = None
+    for attempt in range(1, 3):  # retry once on transient failures
+        try:
+            with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as s:
+                s.ehlo()
+                s.starttls()
+                s.ehlo()
+                if SMTP_USER:
+                    s.login(SMTP_USER, SMTP_PASS)
+                s.send_message(msg)
+            db.log_send("email", to, subject, body, "sent")
+            log.info("[email sent] attempt=%d to=%s", attempt, to)
+            return True
+        except smtplib.SMTPAuthenticationError as e:
+            # Auth errors won't resolve on retry — fail fast.
+            db.log_send("email", to, subject, body, "error", str(e))
+            log.warning("[email auth error] %s: %s", to, e)
+            raise
+        except Exception as e:
+            last_err = e
+            log.warning("[email error attempt=%d] %s: %s", attempt, to, e)
+    db.log_send("email", to, subject, body, "error", str(last_err))
+    raise last_err
 
 
 @app.post("/api/subscribe")
@@ -203,8 +213,11 @@ async def subscribe(sub: Subscription):
     except Exception as e:
         results["email"] = False
         results["email_error"] = str(e)
+        log.warning("[subscribe email error] %s: %s", sub.email, e)
+    demo = not EMAIL_LIVE
     return {"ok": True, "saved": True, "delivered": results,
-            "note": "If email shows false, the server is in demo mode (no SMTP configured)."}
+            "note": "Server is in demo mode (SMTP not configured) — no real email was sent." if demo else (
+                "Email failed: " + results.get("email_error", "") if not results.get("email") else "")}
 
 
 @app.post("/api/unsubscribe")
