@@ -30,13 +30,41 @@ current sidebar scenario and the real computed numbers, never invented values.
 ## Quick start
 
 ```bash
+# 1. clone
+git clone https://github.com/dguy1470/AEP-HackOHI-O-26.git
+cd AEP-HackOHI-O-26
+
+# 2. install dependencies
 pip install -r requirements.txt
+
+# 3. run
 streamlit run app.py
 ```
 
 Then open http://localhost:8501 and change any input in the sidebar — every
 output updates live (built for the "let judges change a scenario input and
 observe the response" requirement).
+
+If `streamlit` is not recognized as a command, use `python -m streamlit run app.py`.
+
+### Get the data (not in this repo)
+
+The `data/` folder (Data1 + Data2) is **not committed** — some shapefiles
+exceed GitHub's 100 MB limit. Obtain the organizer-provided dataset through the
+team's shared location and place it in the project root so the structure looks
+like:
+
+```
+AEP-HackOHI-O-26/
+  app.py
+  concierge/
+  data/
+    Data1/   (arcos damage, customers, poles, priority facilities, ...)
+    Data2/   (transformers, switches, reclosers, secondary, ...)
+```
+
+The app reads shapefiles from `data/Data1` and `data/Data2`. Without the folder
+it still launches but shows a data-missing warning.
 
 Optional: set `OPENAI_API_KEY` to enable an LLM "polish" pass over the
 customer messages. It is **off by default**; the app is fully functional and
