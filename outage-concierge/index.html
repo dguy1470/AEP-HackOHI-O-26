@@ -333,7 +333,7 @@ $("#stormclock").textContent="t+"+storm.t+" steps · eye "+storm.lat.toFixed(3)+
 function startStorm(){if(stormTimer)return;storm.on=true;$("#stormplay").textContent="⏸ Pause storm";$("#stormplay").classList.add("on");stormTimer=setInterval(stormFrame,650)}
 function stopStorm(){clearInterval(stormTimer);stormTimer=null;$("#stormplay").textContent="▶ Start storm";$("#stormplay").classList.remove("on")}
 $("#stormplay").onclick=()=>{if(stormTimer)stopStorm();else startStorm()};
-$("#stormreset").onclick=()=>{stopStorm();storm.on=false;storm.t=0;storm.lat=ctr[0];storm.lon=B[0]-0.05;stormLayer.clearLayers();trackLayer.clearLayers();zoneLayer.clearLayers();$("#stormclock").textContent="stopped";draw()};
+$("#stormreset").onclick=()=>{stopStorm();storm.on=false;storm.t=0;storm.lat=ctr[0];storm.lon=B[0]-0.05;notifiedForStorm=false;stormLayer.clearLayers();trackLayer.clearLayers();zoneLayer.clearLayers();$("#stormclock").textContent="stopped";draw()};
 $("#stormplace").onclick=()=>{storm.place=!storm.place;$("#stormplace").classList.toggle("on",storm.place);$("#geomsg").textContent=storm.place?"Click the map to set the storm’s starting point.":""};
 // Coalesce rapid slider input to one update per animation frame, keeping drags smooth.
 function rafThrottle(fn){let q=false;return()=>{if(q)return;q=true;requestAnimationFrame(()=>{q=false;fn()})}}
@@ -394,7 +394,7 @@ $("#model").textContent=`Under the hood: a statistical model trained on ${D.n.to
 const C=document.createDocumentFragment();D.rows.forEach((r,i)=>{if(i<300||r[10]){const o=document.createElement("option");o.value=i;o.textContent=`P-${r[0]} · circuit C-${D.circ[r[3]][0]}${r[10]?" · declared life-support":""}`;C.appendChild(o)}});$("#pick").appendChild(C);
 $("#sev").innerHTML=SEV.map((s,i)=>`<option value="${i}">${s[0]}</option>`).join("");$("#sev").value=3;
 $("#steps").innerHTML=U.map(u=>`<div>${u[1]}<input type="number" min="0" max="20" id="q_${u[0]}" value="${S.q[u[0]]}"></div>`).join("");
-$("#pick").onchange=e=>{S.i=+e.target.value;upd()};
+$("#pick").onchange=e=>{S.i=+e.target.value;notifiedForStorm=false;upd()};
 U.forEach(u=>$("#q_"+u[0]).oninput=e=>{S.q[u[0]]=Math.max(0,+e.target.value||0);syncControls();upd()});["crews","acc","med","mob","crit","dm"].forEach(i=>$("#"+i).oninput=()=>{syncControls();upd()});addEventListener("resize",()=>map.invalidateSize());
 function applySev(v){S.sev=+v;$("#sev").value=v;baseCell=null;if(storm.on){recolorAll();recolor()}else recolorAll();if(storm.on||storm.t)drawZones();upd()}
 $("#sev").onchange=e=>applySev(e.target.value);
@@ -460,9 +460,10 @@ if(Notification.permission==="granted"){showNote("Alerts are on ✅","We’ll le
 const p=await Notification.requestPermission();notifState();
 if(p==="granted")showNote("Alerts are on ✅","We’ll let you know if a storm heads your way.");else if(p==="denied")$("#notifState").textContent="blocked (allow in browser settings)"}
 $("#notifOn").onclick=enableNotes;
-$("#notifTest").onclick=async()=>{const k=S.ctx?S.ctx.k.band:0;const ns=$("#notifState");if(!canNotify){ns.textContent="❌ Not supported in this browser";return}if(Notification.permission==="denied"){ns.textContent="❌ Blocked — click the lock icon in your browser’s address bar, allow notifications, then try again";return}if(Notification.permission!=="granted"){ns.textContent="Asking for permission…";const p=await Notification.requestPermission();notifState();if(p!=="granted")return}const ok=showNote("Outage Concierge ✅",simpleMsg(k));ns.textContent=ok?"✅ Test alert sent — you should see it now":"❌ Notification didn’t fire; check browser settings"};
+$("#notifTest").onclick=async()=>{const ns=$("#notifState");if(!canNotify){ns.textContent="❌ Not supported in this browser";return}if(Notification.permission==="denied"){ns.textContent="❌ Blocked — open System Settings → Notifications and allow your browser";return}if(Notification.permission!=="granted"){ns.textContent="Requesting permission…";const p=await Notification.requestPermission();notifState();if(p!=="granted"){ns.textContent="❌ Permission not granted — click ‘Turn on alerts’ first";return}}const k=S.ctx?S.ctx.k.band:2;const ok=showNote("⚡ Outage Concierge test",simpleMsg(k));if(ok){ns.textContent="✅ Test sent — check your notifications";notifiedForStorm=false}else{ns.textContent="❌ Notification didn’t fire — check macOS Notifications settings"}};
 // Fire an alert once when the moving storm first reaches the selected location.
-let notifiedForStorm=false;
+let notifiedForStorm=false;// reset when user picks a new location so they get notified for their spot
+const _origUpd=typeof upd==="function"?upd:null;
 function maybeStormNotify(){if(!$("#notifStorm").checked||!storm.on)return;const r=D.rows[S.i],d=distKm(storm.lat,storm.lon,r[2],r[1]);
 if(d<storm.rad&&!notifiedForStorm){notifiedForStorm=true;const msg=simpleMsg(Math.max(2,S.ctx?S.ctx.k.band:2));showNote("⚡ Storm reaching your area",msg);
 // Also email subscribers via the backend (if one is running). Server throttles duplicates.
