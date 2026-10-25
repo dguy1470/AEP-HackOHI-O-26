@@ -389,19 +389,7 @@ body.sb-collapsed #notifBar{right:16px}
 <button id="sbToggle" aria-label="Open concierge">💬 Ask</button>
 <script>
 const D=/*DATA*/;const $=s=>document.querySelector(s);
-/* ---- PRIVACY: coarsen every premise location to a ~300 m grid so markers
-   show a neighborhood block, not an exact house. Done once up front, so all
-   downstream uses (markers, selected pin, pan/fit, nearest-premise, storm
-   distance) inherit the coarsened coordinate. Risk math uses other fields, so
-   this doesn't change any prediction. Raw coordinates are discarded here and
-   never displayed. ---- */
-(function privacyCoarsen(){
-  const CELL_M=300, latDeg=CELL_M/111320, lonDeg=CELL_M/(111320*Math.cos(37.27*Math.PI/180));
-  const snap=(v,step)=> (Math.round(v/step)+0.5)*step; // cell center
-  if(D&&D.rows)for(const r of D.rows){ r[1]=+snap(r[1],lonDeg).toFixed(5); r[2]=+snap(r[2],latDeg).toFixed(5); }
-  // Also coarsen the historical damage dots shown on the map.
-  if(D&&D.dmg)for(const p of D.dmg){ p[0]=+snap(p[0],lonDeg).toFixed(5); p[1]=+snap(p[1],latDeg).toFixed(5); }
-})();
+/* Map markers use the actual premise coordinates from the data (no grid coarsening). */
 const SEV=[["Calm — no storm",-3,0],["Light storm",-1.2,2],["Moderate storm",-.5,6],["Feb 2025–like storm",0,12],["Severe storm",.8,24]];
 const BANDS=[["Low",.25,"--lo"],["Moderate",.4,"--md"],["Elevated",.6,"--el"],["High",1.01,"--hi"]];
 const U=[["pole","Poles",3.43],["wire","Wire spans",1.08],["xfmr","Transformers",2.0],["fuse","Fuse / switch banks",1.71],["rec","Reclosers",1.10]];
