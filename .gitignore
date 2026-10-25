@@ -1,0 +1,18 @@
+# Raw utility data (not for public distribution) — excluded per data-use terms
+outage-concierge/Data1/
+outage-concierge/Data2/
+outage-concierge/matched_upstream/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+# Secrets / backend env (never commit real credentials)
+.env
+backend/.env
+*.env.local
+
+# Local database (contains subscriber contact info — do not commit)
+*.db
+backend/concierge.db
