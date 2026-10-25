@@ -4,68 +4,146 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
+/* ============================================================
+   REDESIGN: airy, borderless surfaces + selectable color palettes
+   Palette is chosen via <html data-palette="..."> ; light/dark via data-theme.
+   Each palette sets --h (brand hue) + accent; neutrals derive from it.
+   ============================================================ */
 :root{
-  --bg:#eef1f5;--card:#ffffff;--tx:#141b24;--mut:#5b6b7c;--bd:#e2e7ee;
-  --brand:#0b2a4a;--brand2:#13426e;--ac:#c0262d;--acbg:#fbeaea;
-  --lo:#1f8f5f;--md:#c4920a;--el:#e07b00;--hi:#c0262d;
-  --r:14px;--r2:10px;
-  --sh:0 1px 2px rgba(16,26,40,.06),0 4px 16px rgba(16,26,40,.06);
-  --sh2:0 2px 6px rgba(16,26,40,.08),0 10px 30px rgba(16,26,40,.10);
+  /* palette-driven brand hue (navy default) */
+  --h:212;--brandL:22%;--brand2L:34%;--acH:357;--acS:62%;--acL:48%;
+  /* neutrals (light) */
+  --bg:hsl(var(--h) 24% 97%);--surface:#fff;--surface2:hsl(var(--h) 24% 98.5%);--card:#fff;
+  --tx:hsl(var(--h) 30% 12%);--mut:hsl(var(--h) 12% 44%);--bd:hsl(var(--h) 20% 90%);
+  --brand:hsl(var(--h) 55% var(--brandL));--brand2:hsl(var(--h) 52% var(--brand2L));
+  --ac:hsl(var(--acH) var(--acS) var(--acL));--ac2:hsl(var(--acH) var(--acS) calc(var(--acL) + 8%));--acbg:hsl(var(--acH) 70% 95%);
+  --focus:hsl(210 90% 56%);
+  --lo:#1f8f5f;--md:#c4920a;--el:#e07b00;--hi:hsl(var(--acH) 60% 46%);
+  --r:18px;--r2:12px;--r3:999px;
+  --sp:20px;
+  --sh:0 1px 3px hsl(var(--h) 30% 20% / .07),0 6px 20px hsl(var(--h) 30% 20% / .06);
+  --sh2:0 8px 30px hsl(var(--h) 30% 20% / .14);
 }
+/* ---- Palettes (hue + accent only; everything else derives) ---- */
+:root[data-palette="ocean"]{--h:194;--acH:16;--acS:78%;--acL:52%}
+:root[data-palette="forest"]{--h:158;--acH:28;--acS:70%;--acL:46%}
+:root[data-palette="slate"]{--h:220;--acH:220;--acS:16%;--acL:42%}
+:root[data-palette="sunset"]{--h:250;--acH:12;--acS:82%;--acL:56%}
+:root[data-palette="rose"]{--h:280;--acH:340;--acS:68%;--acL:54%}
+
+/* ---- Dark mode: swap neutrals, keep the palette hue/accent ---- */
 @media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
-  --bg:#0d1117;--card:#161b22;--tx:#e8ecf2;--mut:#9aa6b4;--bd:#273040;
-  --brand:#0e2740;--brand2:#13426e;--ac:#ff6b70;--acbg:#3a2224;
-  --lo:#49c88a;--md:#e8bd2e;--el:#ff9a2e;--hi:#ff5a60;
-  --sh:0 1px 2px rgba(0,0,0,.4),0 4px 16px rgba(0,0,0,.35);
-  --sh2:0 2px 6px rgba(0,0,0,.5),0 10px 30px rgba(0,0,0,.45);
+  --bg:hsl(var(--h) 24% 7%);--surface:hsl(var(--h) 20% 11%);--surface2:hsl(var(--h) 20% 13%);--card:hsl(var(--h) 20% 11%);
+  --tx:hsl(var(--h) 20% 92%);--mut:hsl(var(--h) 12% 62%);--bd:hsl(var(--h) 18% 22%);
+  --brand:hsl(var(--h) 45% 16%);--brand2:hsl(var(--h) 48% 26%);
+  --ac:hsl(var(--acH) var(--acS) 62%);--ac2:hsl(var(--acH) var(--acS) 70%);--acbg:hsl(var(--acH) 40% 18%);
+  --sh:0 1px 3px #0008,0 6px 20px #0006;--sh2:0 10px 34px #000a;
 }}
+:root[data-theme="dark"]{
+  --bg:hsl(var(--h) 24% 7%);--surface:hsl(var(--h) 20% 11%);--surface2:hsl(var(--h) 20% 13%);--card:hsl(var(--h) 20% 11%);
+  --tx:hsl(var(--h) 20% 92%);--mut:hsl(var(--h) 12% 62%);--bd:hsl(var(--h) 18% 22%);
+  --brand:hsl(var(--h) 45% 16%);--brand2:hsl(var(--h) 48% 26%);
+  --ac:hsl(var(--acH) var(--acS) 62%);--ac2:hsl(var(--acH) var(--acS) 70%);--acbg:hsl(var(--acH) 40% 18%);
+  --sh:0 1px 3px #0008,0 6px 20px #0006;--sh2:0 10px 34px #000a;
+}
+
 *{box-sizing:border-box}
-html{scroll-padding-top:70px}
-body{margin:0;background:var(--bg);color:var(--tx);font-family:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+html{scroll-padding-top:120px}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+h1,h2,h3{letter-spacing:-.01em}
+a{color:var(--ac)}
 
-/* Branded top bar */
-header.topbar{position:sticky;top:0;z-index:600;background:linear-gradient(100deg,var(--brand),var(--brand2));color:#fff;box-shadow:var(--sh)}
-header.topbar .wrap{max-width:1180px;margin:auto;padding:14px 20px;display:flex;align-items:center;gap:14px}
-.logo{width:38px;height:38px;border-radius:10px;background:rgba(255,255,255,.12);display:grid;place-items:center;font-size:20px;flex:none}
-header.topbar h1{margin:0;font-size:19px;font-weight:700;letter-spacing:-.01em;color:#fff}
-header.topbar p{margin:1px 0 0;font-size:12.5px;color:rgba(255,255,255,.72);max-width:70ch}
+/* ---- Header: slimmer, cleaner, one accent line ---- */
+header.topbar{position:sticky;top:0;z-index:600;background:var(--surface);color:var(--tx);border-bottom:1px solid var(--bd);backdrop-filter:saturate(1.1) blur(6px)}
+header.topbar .wrap{max-width:1200px;margin:auto;padding:12px 24px;display:flex;align-items:center;gap:14px}
+.logo{width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;display:grid;place-items:center;font-size:20px;flex:none;box-shadow:var(--sh)}
+header.topbar h1{margin:0;font-size:18px;font-weight:800;color:var(--tx)}
+header.topbar p{margin:1px 0 0;font-size:12px;color:var(--mut);max-width:64ch}
 
-/* Tabs */
-nav.tabs{position:sticky;top:0;z-index:500;background:var(--card);border-bottom:1px solid var(--bd);box-shadow:var(--sh)}
-nav.tabs .wrap{display:flex;gap:4px;flex-wrap:wrap;max-width:1180px;margin:auto;padding:6px 16px}
-nav.tabs a{display:inline-flex;align-items:center;gap:6px;padding:9px 15px;border-radius:99px;color:var(--mut);text-decoration:none;font-size:14px;font-weight:600;transition:background .15s,color .15s}
-nav.tabs a:hover{background:var(--bg);color:var(--tx)}
-nav.tabs a.active{background:var(--ac);color:#fff;box-shadow:0 2px 8px rgba(192,38,45,.35)}
+/* ---- Nav: quiet underline tabs instead of loud pills ---- */
+nav.tabs{position:sticky;top:78px;z-index:580;background:var(--surface);border-bottom:1px solid var(--bd)}
+nav.tabs .wrap{display:flex;gap:6px;flex-wrap:wrap;max-width:1200px;margin:auto;padding:4px 24px}
+nav.tabs a{position:relative;display:inline-flex;align-items:center;gap:7px;padding:12px 10px;color:var(--mut);text-decoration:none;font-size:14.5px;font-weight:600;border-bottom:2.5px solid transparent;transition:color .15s,border-color .15s}
+nav.tabs a:hover{color:var(--tx)}
+nav.tabs a.active{color:var(--ac);border-bottom-color:var(--ac)}
 
-main{max-width:1180px;margin:auto;padding:20px 16px 40px}
-.view>div{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:18px;align-items:start}
-@media(max-width:900px){.view>div{grid-template-columns:1fr}}
-/* Single-column (centered) views for alerts */
-#view-alerts>div{grid-template-columns:minmax(0,720px);justify-content:center}
+/* ---- Layout: wider gutters, more air ---- */
+main{max-width:1200px;margin:auto;padding:28px 24px 56px}
+.view>div{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:28px;align-items:start}
+@media(max-width:900px){.view>div{grid-template-columns:1fr;gap:20px}}
 
-/* ---- Concierge sidebar (always-on, right side) ---- */
-:root{--sidew:360px}
-#sidebar{position:fixed;top:0;right:0;bottom:0;width:var(--sidew);background:var(--card);border-left:1px solid var(--bd);box-shadow:-4px 0 24px rgba(16,26,40,.08);display:flex;flex-direction:column;z-index:700;transition:transform .25s ease}
-#sidebar header.sbhead{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;background:linear-gradient(100deg,var(--brand),var(--brand2));color:#fff}
-#sidebar header.sbhead h2{margin:0;font-size:15px;color:#fff}
-#sidebar header.sbhead button{background:rgba(255,255,255,.14);border:none;color:#fff;border-radius:8px;padding:5px 9px}
-#sidebar .sbbody{flex:1;overflow:auto;padding:14px;display:flex;flex-direction:column}
+/* ---- FLAT sections: no boxes, no stray dividers. Side-by-side columns are
+   separated by the grid gap; stacked cards (mobile) get a hairline divider. ---- */
+.card{background:transparent;border:none;border-radius:0;padding:0;margin:0 0 20px;box-shadow:none}
+.card:last-child{margin-bottom:0}
+/* On narrow screens the two sections stack, so add a divider + spacing between them */
+@media(max-width:900px){
+  .view>div>.card{padding-bottom:22px;border-bottom:1px solid var(--bd)}
+  .view>div>.card:last-child{padding-bottom:0;border-bottom:none}
+}
+h2{font-size:13px;font-weight:800;margin:0 0 12px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut)}
+h2+*{margin-top:0}
+.big-risk{font-size:18px;font-weight:700;margin:2px 0 10px;color:var(--tx)}
+
+/* The few elements that genuinely benefit from a container keep a soft tint (no border) */
+.cols div,.msg,.ibx-signup{border:none!important;background:var(--surface2);border-radius:var(--r2)}
+details{border:none;background:var(--surface2);border-radius:var(--r2)}
+
+/* ---- Concierge sidebar ---- */
+:root{--sidew:380px}
+#sidebar{position:fixed;top:0;right:0;bottom:0;width:var(--sidew);background:var(--surface);border-left:1px solid var(--bd);box-shadow:-8px 0 40px hsl(var(--h) 30% 20% / .10);display:flex;flex-direction:column;z-index:700;transition:transform .25s ease}
+#sidebar header.sbhead{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:14px 18px;background:linear-gradient(120deg,var(--brand),var(--brand2));color:#fff}
+#sidebar header.sbhead h2{margin:0;font-size:15px;color:#fff;text-transform:none;letter-spacing:0}
+#sidebar header.sbhead button{background:rgba(255,255,255,.18);border:none;color:#fff;border-radius:9px;padding:6px 10px;cursor:pointer}
+#sidebar .sbbody{flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column}
 #sidebar #chat{flex:1;max-height:none}
-/* Make room for the sidebar on wide screens (only while it's open) */
 @media(min-width:1101px){body{padding-right:var(--sidew)}nav.tabs .wrap,header.topbar .wrap,main{max-width:none;margin-right:0}}
-/* Collapsed state: slide the sidebar off and reclaim the space, at any width */
 #sidebar.collapsed{transform:translateX(100%)}
 body.sb-collapsed{padding-right:0}
-/* Floating button to reopen the concierge; shown when collapsed or on narrow screens */
-#sbToggle{position:fixed;right:16px;bottom:16px;z-index:800;border-radius:99px;padding:12px 16px;background:var(--ac);color:#fff;border:none;box-shadow:0 4px 14px rgba(192,38,45,.4);font-weight:700;display:none}
+#sbToggle{position:fixed;right:22px;bottom:22px;z-index:800;border-radius:var(--r3);padding:16px 24px;font-size:17px;background:linear-gradient(120deg,var(--brand),var(--brand2));color:#fff;border:none;box-shadow:var(--sh2);font-weight:700;display:none}
 body.sb-collapsed #sbToggle{display:block}
-/* On narrow screens the sidebar is off by default; the floating button opens it */
 @media(max-width:1100px){#sidebar{transform:translateX(100%)}#sidebar.open{transform:none}#sbToggle{display:block}}
-.view.active{animation:fade .25s ease}
-@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.view.active{animation:fade .3s ease}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 
-.card{background:var(--card);border:1px solid var(--bd);border-radius:var(--r);padding:18px;margin-bottom:18px;box-shadow:var(--sh)}
-h2{font-size:17px;font-weight:700;letter-spacing:-.01em;margin:0 0 10px}
+/* ---- Storm controls: stacked label + custom-styled range sliders ---- */
+.storm-sliders{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 20px;margin:10px 0 18px}
+@media(max-width:560px){.storm-sliders{grid-template-columns:1fr}}
+.storm-sliders label{display:flex;flex-direction:column;gap:7px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);margin:0}
+input[type="range"]{-webkit-appearance:none;appearance:none;width:100%;height:6px;border-radius:999px;background:var(--bd);outline:none;padding:0;border:none;cursor:pointer}
+input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:20px;height:20px;border-radius:50%;background:var(--ac);border:3px solid var(--surface);box-shadow:var(--sh);cursor:pointer;transition:transform .1s}
+input[type="range"]::-webkit-slider-thumb:hover{transform:scale(1.12)}
+input[type="range"]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:var(--ac);border:3px solid var(--surface);box-shadow:var(--sh);cursor:pointer}
+input[type="range"]::-moz-range-track{height:6px;border-radius:999px;background:var(--bd)}
+input[type="range"]:focus-visible{box-shadow:0 0 0 3px color-mix(in srgb,var(--focus) 35%,transparent)}
+
+/* ---- Top bar: tidy, fixed height, buttons grouped on the right ---- */
+header.topbar{height:78px}
+header.topbar .wrap{height:78px;min-height:0;padding-top:0;padding-bottom:0;overflow:hidden}/* fixed 78px so nav sticks flush below */
+.topbar-actions{display:flex;align-items:center;gap:8px;margin-left:auto}
+.hdr-signup{height:42px;padding:0 16px;border-radius:10px;border:none;background:var(--ac);color:#fff;font-weight:700;font-size:13.5px;cursor:pointer;white-space:nowrap}
+.hdr-signup:hover{background:var(--ac2)}
+@media(max-width:620px){.hdr-signup{padding:0 11px;font-size:0}.hdr-signup:before{content:"✉";font-size:16px}}
+/* Sign-up dialog (reuses the slide-in panel look) */
+#signupOverlay{position:fixed;inset:0;background:rgba(10,16,24,.45);z-index:1000}
+#signupPanel{position:fixed;top:0;right:0;bottom:0;width:340px;max-width:92vw;background:var(--surface);color:var(--tx);box-shadow:-8px 0 30px rgba(0,0,0,.25);z-index:1001;transform:translateX(100%);transition:transform .25s ease;display:flex;flex-direction:column}
+#signupPanel.open{transform:translateX(0)}
+#signupPanel .sp-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:linear-gradient(120deg,var(--brand),var(--brand2));color:#fff}
+#signupPanel .sp-head button{background:rgba(255,255,255,.18);border:none;color:#fff;border-radius:8px;padding:5px 10px;cursor:pointer}
+#signupPanel .sp-body{padding:16px}
+#signupPanel input{width:100%;padding:10px 12px;border:1px solid var(--bd);border-radius:10px;background:var(--surface2);color:var(--tx)}
+#signupPanel .row button{padding:10px 14px;border:1px solid var(--bd);border-radius:10px;background:var(--surface2);color:var(--tx);cursor:pointer;font-weight:600}
+#signupPanel .btn-primary{background:var(--ac);border-color:var(--ac);color:#fff}
+.sp-hint{color:var(--mut);font-size:13px}
+header.topbar p{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+@media(max-width:620px){header.topbar p{display:none}}
+
+/* ---- Palette picker swatches in Settings ---- */
+.pal{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px}
+.pal button{width:34px;height:34px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0;box-shadow:var(--sh)}
+.pal button[aria-checked="true"]{border-color:var(--tx);outline:2px solid var(--bg);outline-offset:-5px}
+
+/* (legacy .card/h2 removed — flat redesign rules above now apply) */
 h3{font-size:12px;margin:14px 0 6px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em;font-weight:700}
 
 label{font-size:13px;color:var(--mut);display:block;margin:8px 0 3px;font-weight:500}
@@ -76,8 +154,13 @@ button{cursor:pointer;font-weight:600;background:var(--bg)}
 button:hover{border-color:var(--brand2);background:var(--card)}
 button.on{background:var(--acbg);border-color:var(--ac);color:var(--ac)}
 
-#map{width:100%;height:380px;border-radius:var(--r2);border:1px solid var(--bd);background:var(--bg);box-shadow:inset 0 0 0 1px rgba(0,0,0,.02)}
+#map{width:100%;height:clamp(300px,42vh,440px);border-radius:var(--r2);border:1px solid var(--bd);background:var(--bg);box-shadow:inset 0 0 0 1px rgba(0,0,0,.02);position:relative;z-index:0;isolation:isolate;overflow:hidden}
 .leaflet-container{border-radius:var(--r2);font:inherit}
+/* Keep Leaflet's own panes/controls (which use high z-indexes) from escaping the
+   map box and covering the sticky header/nav. Map lives in its own stacking
+   context (z-index:0 + isolate) so its internal z-indexes are scoped to it. */
+.leaflet-pane,.leaflet-top,.leaflet-bottom,.leaflet-control{z-index:1!important}
+#mapSlotMap,#mapSlotStorm{position:relative;z-index:0}
 #addr{flex:1;min-width:140px}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.mut{color:var(--mut);font-size:13px}
 .band{display:inline-block;padding:4px 14px;border-radius:99px;color:#fff;font-weight:700;font-size:16px;letter-spacing:.01em}
@@ -85,6 +168,15 @@ button.on{background:var(--acbg);border-color:var(--ac);color:var(--ac)}
 .step{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}.step div{font-size:12px;color:var(--mut)}.step input{width:100%}
 .tl{border-left:3px solid var(--bd);margin:8px 0 0 6px;padding-left:14px}.tl p{margin:0 0 9px;font-size:14px;position:relative}
 .tl p:before{content:"";position:absolute;left:-19px;top:7px;width:8px;height:8px;border-radius:50%;background:var(--ac)}
+/* Tailored personal-plan cards (shown when Get-ready needs are checked) */
+.prio-badge{display:inline-block;margin:8px 0 4px;padding:6px 12px;border-radius:999px;background:linear-gradient(120deg,var(--brand),var(--brand2));color:#fff;font-weight:700;font-size:13px;box-shadow:var(--sh)}
+.plan-head{font-weight:700;margin:12px 0 8px;font-size:14px}
+.need-card{border:none;border-left:4px solid var(--ac);background:var(--surface2);border-radius:var(--r2);padding:12px 14px;margin:0 0 10px;animation:fade .3s ease}
+.need-card.need-med{border-left-color:#c0262d}
+.need-card.need-mob{border-left-color:#13426e}
+.need-card.need-crit{border-left-color:#c4920a}
+.need-card b{display:block;margin-bottom:6px;font-size:14px}
+.need-card ul{margin:0;padding-left:18px}.need-card li{margin:4px 0;font-size:13.5px}
 .warn{background:var(--acbg);border-left:4px solid var(--ac);padding:10px 12px;border-radius:var(--r2);margin:10px 0;font-size:14px}
 .cols{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}@media(max-width:600px){.cols{grid-template-columns:1fr}}
 .cols div{border:1px solid var(--bd);border-radius:var(--r2);padding:12px;font-size:13px;background:var(--bg)}
@@ -118,14 +210,121 @@ details>*:not(summary){margin-bottom:12px}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
 a.skip{position:absolute;left:-999px;top:0;background:var(--ac);color:#fff;padding:8px 12px;border-radius:0 0 8px 0;z-index:999}
 a.skip:focus{left:0}
+/* ---- Settings gear + panel ---- */
+.gear{flex:none;width:40px;height:40px;border-radius:10px;border:1px solid var(--bd);background:var(--surface2);color:var(--tx);font-size:18px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;text-align:center;padding:0;transition:background .15s,transform .2s}
+.gear:hover{background:rgba(255,255,255,.26)}
+.gear:focus-visible{outline:2px solid #fff;outline-offset:2px}
+#settingsOverlay{position:fixed;inset:0;background:rgba(10,16,24,.45);z-index:1000}
+#settingsPanel{position:fixed;top:0;right:0;bottom:0;width:340px;max-width:92vw;background:var(--card);color:var(--tx);box-shadow:-8px 0 30px rgba(0,0,0,.25);z-index:1001;transform:translateX(100%);transition:transform .25s ease;display:flex;flex-direction:column}
+#settingsPanel.open{transform:translateX(0)}
+#settingsPanel .sp-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:linear-gradient(100deg,var(--brand),var(--brand2));color:#fff}
+#settingsPanel .sp-head button{background:rgba(255,255,255,.16);border:none;color:#fff;border-radius:8px;padding:5px 10px;cursor:pointer;font-size:14px}
+#settingsPanel .sp-body{padding:16px;overflow:auto}
+#settingsPanel h3{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);margin:0 0 4px}
+#settingsPanel .sp-hint{color:var(--mut);font-size:13px;margin:0 0 10px}
+#settingsPanel .seg{display:flex;gap:6px}
+#settingsPanel .seg button{flex:1;padding:9px 6px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);border-radius:10px;cursor:pointer;font-size:13px;font-weight:600}
+#settingsPanel .seg button[aria-checked="true"]{background:var(--ac);color:#fff;border-color:var(--ac)}
+#settingsPanel .row{display:flex;gap:8px;flex-wrap:wrap}
+#settingsPanel .row button{padding:9px 13px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);border-radius:10px;cursor:pointer;font-weight:600}
+#settingsPanel .row button:hover{border-color:var(--ac)}
+.sp-check{display:flex;gap:8px;align-items:center;margin:6px 0;font-size:14px;color:var(--tx)}
+@media(prefers-reduced-motion:reduce){#settingsPanel,#inboxPanel,#notifBar .toast{transition:none}}
+
+/* ---- Live notification toasts: float top-right, don't fight the sticky header ---- */
+/* Toasts sit top-right, but shift left by the sidebar width while the chat is
+   open so they never overlap it. When the sidebar is collapsed they return to
+   the edge. On narrow screens the sidebar overlays, so toasts stay near the edge. */
+#notifBar{position:fixed;top:88px;right:calc(var(--sidew) + 16px);z-index:950;display:flex;flex-direction:column;gap:8px;max-width:min(360px,92vw);transition:right .25s ease}
+body.sb-collapsed #notifBar{right:16px}
+@media(max-width:1100px){#notifBar{right:16px}}
+#notifBar .toast{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;background:var(--ac);color:#fff;font-size:14px;font-weight:500;line-height:1.4;border-radius:12px;box-shadow:var(--sh2);animation:toastIn .25s ease}
+#notifBar .toast.info{background:linear-gradient(100deg,var(--brand),var(--brand2))}
+#notifBar .toast .tx{flex:1}
+#notifBar .toast button{background:rgba(255,255,255,.2);border:none;color:#fff;border-radius:7px;padding:2px 8px;cursor:pointer;font-weight:700;flex:none;line-height:1.2}
+@keyframes toastIn{from{transform:translateY(-12px);opacity:0}to{transform:translateY(0);opacity:1}}
+
+/* ---- Inbox bell button + badge ---- */
+.bell{position:relative}
+.bell .bell-ico{font-size:18px;line-height:1;display:flex;align-items:center;justify-content:center;width:100%;height:100%}
+.badge{position:absolute;top:-3px;right:-3px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:#fff;color:var(--ac);font-size:10px;line-height:18px;font-weight:800;text-align:center;border:2px solid var(--brand);pointer-events:none}
+#inboxOverlay{position:fixed;inset:0;background:rgba(10,16,24,.45);z-index:1000}
+#inboxPanel{position:fixed;top:0;right:0;bottom:0;width:360px;max-width:92vw;background:var(--card);color:var(--tx);box-shadow:-8px 0 30px rgba(0,0,0,.25);z-index:1001;transform:translateX(100%);transition:transform .25s ease;display:flex;flex-direction:column}
+#inboxPanel.open{transform:translateX(0)}
+#inboxPanel .sp-head{display:flex;align-items:center;gap:8px;padding:14px 16px;background:linear-gradient(100deg,var(--brand),var(--brand2));color:#fff}
+#inboxPanel .sp-head button{background:rgba(255,255,255,.16);border:none;color:#fff;border-radius:8px;padding:5px 10px;cursor:pointer;font-size:13px}
+#inboxPanel .sp-body{padding:14px;overflow:auto}
+.inbox-item{border:1px solid var(--bd);border-radius:10px;padding:10px 12px;margin-bottom:8px;background:var(--bg)}
+.inbox-item .when{color:var(--mut);font-size:12px;margin-top:3px}
+.ibx-signup{border:1px solid var(--bd);border-radius:12px;padding:12px;background:var(--bg)}
+#inboxPanel input,#inboxPanel button{font:inherit;color:var(--tx);border:1px solid var(--bd);background:var(--card);border-radius:10px;padding:9px 11px}
+#inboxPanel .row button{cursor:pointer;font-weight:600}
+#inboxPanel .row button:hover{border-color:var(--ac);color:var(--ac)}
+#inboxPanel input:focus{outline:none;border-color:var(--focus,#3a92ef)}
 </style></head><body>
 <a href="#view-map" class="skip">Skip to main content</a>
-<header class="topbar"><div class="wrap"><div class="logo" aria-hidden="true">⚡</div><div><h1>Outage Concierge</h1><p>Check your storm risk, see how long power might be out, and get a clear plan — in plain language. Prototype using Appalachian Power data; estimates only, not confirmed outage info.</p></div></div></header>
+<header class="topbar"><div class="wrap"><div class="logo" aria-hidden="true">⚡</div><div style="flex:1;min-width:0"><h1>Outage Concierge</h1><p>Storm risk, restoration estimates, and a clear plan — in plain language. <span style="opacity:.8">Prototype; estimates only.</span></p></div>
+<div class="topbar-actions"><button id="signupBtn" class="hdr-signup" title="Sign up for email alerts">✉ Get alerts</button><button id="inboxBtn" class="gear bell" aria-label="Notifications inbox" aria-haspopup="dialog" aria-expanded="false" title="Notifications"><span class="bell-ico">🔔</span><span id="inboxBadge" class="badge" hidden>0</span></button>
+<button id="settingsBtn" class="gear" aria-label="Settings" aria-haspopup="dialog" aria-expanded="false" title="Settings">⚙</button></div></div></header>
+<!-- Live notification bar: transient banners appear here, under the header -->
+<div id="notifBar" aria-live="polite" aria-atomic="false"></div>
+<!-- Settings panel: theme + notifications, available from any tab -->
+<div id="settingsOverlay" hidden></div>
+<div id="settingsPanel" role="dialog" aria-modal="true" aria-label="Settings" aria-hidden="true">
+  <div class="sp-head"><b>Settings</b><button id="settingsClose" aria-label="Close settings">✕</button></div>
+  <div class="sp-body">
+    <h3>Appearance</h3>
+    <p class="sp-hint">Choose how the app looks. “System” follows your device.</p>
+    <div class="seg" role="radiogroup" aria-label="Theme">
+      <button data-theme-choice="light" role="radio">☀ Light</button>
+      <button data-theme-choice="dark" role="radio">🌙 Dark</button>
+      <button data-theme-choice="system" role="radio">💻 System</button>
+    </div>
+    <p class="sp-hint" style="margin-top:12px">Color palette</p>
+    <div class="pal" role="radiogroup" aria-label="Color palette">
+      <button data-palette-choice="default" role="radio" title="Navy" style="background:hsl(212 55% 30%)"></button>
+      <button data-palette-choice="ocean" role="radio" title="Ocean" style="background:hsl(194 55% 38%)"></button>
+      <button data-palette-choice="forest" role="radio" title="Forest" style="background:hsl(158 55% 32%)"></button>
+      <button data-palette-choice="slate" role="radio" title="Slate" style="background:hsl(220 20% 38%)"></button>
+      <button data-palette-choice="sunset" role="radio" title="Indigo" style="background:hsl(250 55% 42%)"></button>
+      <button data-palette-choice="rose" role="radio" title="Plum" style="background:hsl(280 45% 40%)"></button>
+    </div>
+    <h3 style="margin-top:16px">Notifications</h3>
+    <p class="sp-hint">Get a browser pop-up and an in-app banner if a storm heads toward your area.</p>
+    <div class="row"><button id="setNotifOn">Turn on alerts</button><button id="setNotifTest">Send a test</button></div>
+    <p class="sp-hint" style="margin-top:6px">Browser status: <b id="setNotifState">off</b></p>
+
+    <h3 style="margin-top:16px">Customize</h3>
+    <p class="sp-hint">Choose which alerts you want to see.</p>
+    <label class="sp-check"><input type="checkbox" id="setNotifStorm" checked> Storm approaching my area</label>
+    <label class="sp-check"><input type="checkbox" id="setNotifRisk" checked> Risk level changes to Elevated/High</label>
+    <label class="sp-check"><input type="checkbox" id="setNotifBanner" checked> Show in-app banner at the top</label>
+  </div>
+</div>
+<!-- Notifications inbox: history of past notifications -->
+<div id="inboxOverlay" hidden></div>
+<div id="inboxPanel" role="dialog" aria-modal="true" aria-label="Notifications inbox" aria-hidden="true">
+  <div class="sp-head"><b>🔔 Notifications</b><span style="flex:1"></span><button id="inboxClear" title="Clear all">Clear</button><button id="inboxClose" aria-label="Close inbox">✕</button></div>
+  <div class="sp-body">
+  <div id="inboxList"></div><p class="sp-hint" id="inboxEmpty">No notifications yet. When a storm nears your area, alerts will show up here.</p>
+  <div id="alert" role="region" aria-label="Alert eligibility" style="margin-top:12px"></div>
+  <details style="margin-top:12px"><summary>See example alert messages</summary><div class="row" id="mt" style="margin-top:8px"></div><div class="msg" id="msg"></div></details></div>
+</div>
+<!-- Email alert sign-up: opened by the header "Get alerts" button -->
+<div id="signupOverlay" hidden></div>
+<div id="signupPanel" role="dialog" aria-modal="true" aria-label="Email alert sign-up" aria-hidden="true">
+  <div class="sp-head"><b>✉️ Email alerts</b><button id="signupClose" aria-label="Close">✕</button></div>
+  <div class="sp-body">
+    <p class="sp-hint">Get a heads-up by email before and during an outage near you.</p>
+    <input id="subEmail" type="email" placeholder="you@example.com" style="width:100%" aria-label="Email address">
+    <div class="row" style="margin-top:8px"><button id="subBtn" class="btn-primary">Sign me up</button><button id="subTest" title="Send a one-off test email">Send test</button></div>
+    <p class="sp-hint" id="subMsg" aria-live="polite" style="margin-top:8px"></p>
+  </div>
+</div>
 <nav class="tabs" aria-label="Sections"><div class="wrap">
 <a href="#map" data-view="map">🗺️ Map &amp; Risk</a>
 <a href="#storm" data-view="storm">🌪️ Storm</a>
 <a href="#prepare" data-view="prepare">🧰 Prepare</a>
-<a href="#alerts" data-view="alerts">🔔 Alerts</a>
 </div></nav>
 <main>
 
@@ -143,7 +342,7 @@ a.skip:focus{left:0}
 <div class="row"><label for="pick">Location</label><select id="pick"></select><label><input type="checkbox" id="dm"> show past storm damage</label></div></details>
 <p class="hint" style="margin-top:8px">Want to watch a storm move through? See the <a href="#storm">Storm</a> tab.</p></section>
 <section class="card"><h2>Your outage risk</h2><div id="risk" role="region" aria-label="Outage risk result" aria-live="polite"></div>
-<p class="hint">Next: make a plan on the <a href="#prepare">Prepare</a> tab, or set up <a href="#alerts">Alerts</a>. The concierge is always on the right if you have questions.</p></section>
+<p class="hint">Next: make a plan on the <a href="#prepare">Prepare</a> tab, or set up alerts and email sign-up via the ⚙ Settings button (top right). The concierge is always on the right if you have questions.</p></section>
 </div></section>
 
 <!-- ===== STORM ===== -->
@@ -152,7 +351,7 @@ a.skip:focus{left:0}
 <p class="hint">A pretend storm (not live weather) sweeps across the area so you can watch how risk changes as it gets closer. It uses the location you picked on the <a href="#map">Map</a> tab.</p>
 <div class="row"><button id="stormplay">▶ Start storm</button><button id="stormreset">Reset</button><button id="stormplace" title="Then click the map to set where the storm starts">Place storm…</button><span class="mut" id="stormclock">stopped</span></div>
 <div class="row" style="margin-top:6px"><label><input type="checkbox" id="zones" checked> highlight hardest-hit areas</label><label><input type="checkbox" id="track" checked> show forecast path</label></div>
-<div class="row" style="margin-top:6px"><label>Strength<input type="range" id="sintens" min="0.3" max="2" step="0.1" value="1.1"></label><label>Size<input type="range" id="ssize" min="4" max="40" step="1" value="14"></label><label>Speed<input type="range" id="sspeed" min="1" max="8" step="1" value="3"></label><label>Direction<input type="range" id="shdg" min="0" max="359" step="5" value="75"></label></div>
+<div class="storm-sliders"><label>Strength<input type="range" id="sintens" min="0.3" max="2" step="0.1" value="1.1"></label><label>Size<input type="range" id="ssize" min="4" max="40" step="1" value="14"></label><label>Speed<input type="range" id="sspeed" min="1" max="8" step="1" value="3"></label><label>Direction<input type="range" id="shdg" min="0" max="359" step="5" value="75"></label></div>
 <div id="mapSlotStorm"></div></section>
 <section class="card"><h2>Your outage risk</h2>
 <p class="hint">Live risk for your selected location — it updates as the storm moves. Pick a spot on the <a href="#map">Map</a> tab.</p>
@@ -169,25 +368,13 @@ a.skip:focus{left:0}
 <section class="card"><h2>Get ready</h2>
 <p class="hint">Tell us what applies to you so your plan fits. We only use what you check here.</p>
 <div class="row"><label><input type="checkbox" id="med"> someone needs power for medical equipment</label><label><input type="checkbox" id="mob"> mobility or accessibility needs</label><label><input type="checkbox" id="crit"> this is a critical facility</label></div><div id="prep" role="region" aria-label="Preparation steps" aria-live="polite"></div></section>
-<details><summary>How this works & what’s behind the numbers</summary>
-<div class="cols"><div><b>What’s real</b><br>Your area’s past storm damage and the equipment that feeds your power. Not the live grid.</div><div><b>What’s estimated</b><br>Risk and repair-time ranges come from past storms. Treat them as rough guides, not promises.</div><div><b>Your part</b><br>Follow the checklists and alerts to stay safe and prepared before and during an outage.</div></div><p class="mut" id="model"></p></details>
+<details open><summary>How this works, your privacy & responsible use</summary>
+<div class="cols"><div><b>What’s real</b><br>Your area’s past storm damage and the equipment that feeds your power. Not the live grid.</div><div><b>What’s estimated</b><br>Risk and repair-time ranges come from past storms. Treat them as rough guides, not promises.</div><div><b>Your part</b><br>Follow the checklists and alerts to stay safe and prepared before and during an outage.</div></div>
+<div class="cols" style="margin-top:10px"><div><b>🔒 Your privacy</b><br>Locations are shown as ~300&nbsp;m neighborhood areas, not exact homes. IDs are hashed, and we never show names, addresses, or account details — even for life-support locations.</div><div><b>📊 Confidence</b><br>Every risk reading shows a confidence level based on how much nearby history supports it.</div><div><b>⚠️ When we’re unsure</b><br>If there isn’t enough data for a reliable read, we say so and tell you to check your utility’s official outage map.</div></div>
+<p class="mut" id="model"></p></details>
 </div></section>
 
 <!-- ===== ALERTS ===== -->
-<section class="view" id="view-alerts"><div>
-<section class="card"><h2>Staying informed</h2><div id="alert"></div>
-<div style="margin-top:8px;padding:10px;border:1px solid var(--bd);border-radius:8px">
-<div class="row" style="justify-content:space-between"><b>🔔 Get notified in your browser</b><span class="mut" id="notifState"></span></div>
-<p class="hint">Turn on alerts and we’ll pop a simple message if the storm heads your way. No account, no sign-up.</p>
-<div class="row"><button id="notifOn">Turn on alerts</button><button id="notifTest">Send a test alert</button><label><input type="checkbox" id="notifStorm" checked> alert me when the storm nears my area</label></div></div>
-<div id="subBox" style="margin-top:8px;padding:10px;border:1px solid var(--bd);border-radius:8px">
-<b>✉️ Email alerts</b>
-<p class="hint">Prefer email? Sign up and we’ll send alerts there too.</p>
-<div class="row"><label for="subEmail" style="margin:0">Email address</label><input id="subEmail" type="email" placeholder="you@example.com" style="flex:1;min-width:160px"></div>
-<div class="row" style="margin-top:6px"><button id="subBtn">Sign me up</button><button id="subTest" title="Send a one-off test email to the address above">Send test email</button><span class="mut" id="subMsg" aria-live="polite"></span></div></div>
-<details><summary>See example alert messages</summary><div class="row" id="mt"></div><div class="msg" id="msg"></div></details></section>
-</div></section>
-
 </main>
 
 <!-- ===== CONCIERGE SIDEBAR (always on, right side) ===== -->
@@ -202,6 +389,19 @@ a.skip:focus{left:0}
 <button id="sbToggle" aria-label="Open concierge">💬 Ask</button>
 <script>
 const D=/*DATA*/;const $=s=>document.querySelector(s);
+/* ---- PRIVACY: coarsen every premise location to a ~300 m grid so markers
+   show a neighborhood block, not an exact house. Done once up front, so all
+   downstream uses (markers, selected pin, pan/fit, nearest-premise, storm
+   distance) inherit the coarsened coordinate. Risk math uses other fields, so
+   this doesn't change any prediction. Raw coordinates are discarded here and
+   never displayed. ---- */
+(function privacyCoarsen(){
+  const CELL_M=300, latDeg=CELL_M/111320, lonDeg=CELL_M/(111320*Math.cos(37.27*Math.PI/180));
+  const snap=(v,step)=> (Math.round(v/step)+0.5)*step; // cell center
+  if(D&&D.rows)for(const r of D.rows){ r[1]=+snap(r[1],lonDeg).toFixed(5); r[2]=+snap(r[2],latDeg).toFixed(5); }
+  // Also coarsen the historical damage dots shown on the map.
+  if(D&&D.dmg)for(const p of D.dmg){ p[0]=+snap(p[0],lonDeg).toFixed(5); p[1]=+snap(p[1],latDeg).toFixed(5); }
+})();
 const SEV=[["Calm — no storm",-3,0],["Light storm",-1.2,2],["Moderate storm",-.5,6],["Feb 2025–like storm",0,12],["Severe storm",.8,24]];
 const BANDS=[["Low",.25,"--lo"],["Moderate",.4,"--md"],["Elevated",.6,"--el"],["High",1.01,"--hi"]];
 const U=[["pole","Poles",3.43],["wire","Wire spans",1.08],["xfmr","Transformers",2.0],["fuse","Fuse / switch banks",1.71],["rec","Reclosers",1.10]];
@@ -254,8 +454,12 @@ function fmt(h){return h<36?Math.round(h)+" hours":(h/24).toFixed(1)+" days"}
 function buildMarkers(){const opts={renderer:cvRenderer,radius:4,weight:0,fillOpacity:.85};
 D.rows.forEach(r=>{const m=L.circleMarker([r[2],r[1]],opts);m.addTo(map);markers.push(m)})}
 function draw(){if(storm.on)recolor();else recolorAll();
-// Highlight the selected premise.
-const r=D.rows[S.i];if(selMarker)selMarker.remove();selMarker=L.circleMarker([r[2],r[1]],{radius:10,weight:3,color:getComputedStyle(document.body).color,fill:false}).addTo(map);
+// Highlight the selected premise with a clearly visible marker (pin + halo ring).
+const r=D.rows[S.i];if(selMarker)selMarker.remove();
+selMarker=L.layerGroup([
+  L.circleMarker([r[2],r[1]],{radius:14,weight:3,color:"#fff",fillColor:"#111",fillOpacity:0,opacity:.9}),
+  L.circleMarker([r[2],r[1]],{radius:8,weight:3,color:"#111827",fillColor:"#ffffff",fillOpacity:1,className:"sel-pin"})
+]).addTo(map);
 // Past-damage overlay toggles with the checkbox.
 if($("#dm").checked){dmgLayer.clearLayers();D.dmg.forEach(d=>L.circleMarker([d[1],d[0]],{radius:2,weight:0,color:"#788",fillColor:"#788",fillOpacity:.6}).addTo(dmgLayer));dmgLayer.addTo(map)}else{dmgLayer.remove()}}
 // Given a lat/lon, drop an address pin, snap to the nearest premise, and report distance.
@@ -305,9 +509,10 @@ function drawStorm(){stormLayer.clearLayers();trackLayer.clearLayers();
 // eye + impact radius
 L.circle([storm.lat,storm.lon],{radius:storm.rad*1000,color:"#c0262d",weight:2,fillColor:"#c0262d",fillOpacity:.12}).addTo(stormLayer);
 L.circleMarker([storm.lat,storm.lon],{radius:6,color:"#fff",weight:2,fillColor:"#c0262d",fillOpacity:1}).addTo(stormLayer).bindTooltip("Storm center");
-if($("#track").checked){const fc=forecast(10);
+if($("#track").checked){const fc=forecast(8);
 L.polyline([[storm.lat,storm.lon],...fc],{color:"#c0262d",weight:2,dashArray:"6 6",opacity:.8}).addTo(trackLayer);
-fc.forEach((p,i)=>L.circle(p,{radius:(storm.rad+i*2.2)*1000,color:"#c0262d",weight:1,opacity:.25,fill:false}).addTo(trackLayer));}}
+// Fewer uncertainty-cone rings (every other forecast point) = less per-frame work.
+fc.forEach((p,i)=>{if(i%2)return;L.circle(p,{radius:(storm.rad+i*2.2)*1000,color:"#c0262d",weight:1,opacity:.25,fill:false}).addTo(trackLayer);});}}
 const NX=26,NY=20,gw=(B[1]-B[0])/NX,gh=(B[3]-B[2])/NY;
 // Precomputed storm-off risk band for every node under the current scenario.
 // One pass per scenario; downstream code reads this array instead of recomputing risk().
@@ -325,15 +530,19 @@ let mx=1;for(const k in cell)mx=Math.max(mx,cell[k]);
 for(const k in cell){if(cell[k]<3)continue;const[gx,gy]=k.split(",").map(Number),v=cell[k]/mx;
 const s=[B[2]+gy*gh,B[0]+gx*gw],e=[B[2]+(gy+1)*gh,B[0]+(gx+1)*gw];
 L.rectangle([s,e],{stroke:false,fillColor:v>.66?"#c0262d":v>.33?"#e07b00":"#c99700",fillOpacity:.18+.32*v}).addTo(zoneLayer)}}
-function stormFrame(){stepStorm();
+let stormFrameN=0;
+function stormFrame(){stepStorm();stormFrameN++;
 // wrap the storm back to the west edge once it exits the east side, so it loops.
 if(storm.lon>B[1]+0.1){storm.lon=B[0]-0.05;storm.lat=ctr[0]+(Math.random()-.5)*0.2;storm.t=0}
-const near=nearStorm();drawStorm();drawZones(near);recolor(near);upd();maybeStormNotify();
+const near=nearStorm();
+drawStorm();drawZones(near);recolor(near);          // cheap-ish map redraws every tick keep motion smooth
+if(stormFrameN%2===0)upd();                          // the heavy panel rebuild only every other tick
+maybeStormNotify();
 $("#stormclock").textContent="t+"+storm.t+" steps · eye "+storm.lat.toFixed(3)+", "+storm.lon.toFixed(3)}
-function startStorm(){if(stormTimer)return;storm.on=true;$("#stormplay").textContent="⏸ Pause storm";$("#stormplay").classList.add("on");stormTimer=setInterval(stormFrame,650)}
+function startStorm(){if(stormTimer)return;storm.on=true;$("#stormplay").textContent="⏸ Pause storm";$("#stormplay").classList.add("on");stormTimer=setInterval(stormFrame,700)}
 function stopStorm(){clearInterval(stormTimer);stormTimer=null;$("#stormplay").textContent="▶ Start storm";$("#stormplay").classList.remove("on")}
 $("#stormplay").onclick=()=>{if(stormTimer)stopStorm();else startStorm()};
-$("#stormreset").onclick=()=>{stopStorm();storm.on=false;storm.t=0;storm.lat=ctr[0];storm.lon=B[0]-0.05;notifiedForStorm=false;stormLayer.clearLayers();trackLayer.clearLayers();zoneLayer.clearLayers();$("#stormclock").textContent="stopped";draw()};
+$("#stormreset").onclick=()=>{stopStorm();storm.on=false;storm.t=0;storm.lat=ctr[0];storm.lon=B[0]-0.05;stormLayer.clearLayers();trackLayer.clearLayers();zoneLayer.clearLayers();$("#stormclock").textContent="stopped";resetStormNotify();draw()};
 $("#stormplace").onclick=()=>{storm.place=!storm.place;$("#stormplace").classList.toggle("on",storm.place);$("#geomsg").textContent=storm.place?"Click the map to set the storm’s starting point.":""};
 // Coalesce rapid slider input to one update per animation frame, keeping drags smooth.
 function rafThrottle(fn){let q=false;return()=>{if(q)return;q=true;requestAnimationFrame(()=>{q=false;fn()})}}
@@ -381,8 +590,28 @@ if(hs)t+=`<p class="mut" style="font-size:12px">For comparison, in the Feb 2025 
 t+=`<div class="tl">`+(ST.length?ST.map(s=>`<p><b>~${fmt(s[1])}</b> · ${s[0]}${s[2]?` <span class="mut">(≈${s[2]} homes helped)</span>`:""}</p>`).join(""):"<p>Nothing damaged in this scenario, so no repairs needed.</p>")+`</div><p class="mut">Crews fix the biggest problems first so the most homes get power back soonest. Yours comes on after the last step. This isn’t a confirmed time.</p>`;$("#rest").innerHTML=t;
 const L=[];if(k.band>=2)L.push("Charge phones and power banks now; set refrigerator to coldest setting.");else L.push("Charge phones and keep flashlights where you can find them.");
 L.push("Store about 1 gallon of water per person per day for 3 days; keep non-perishable food on hand.");if(R.hi>24)L.push("Plan for a long outage: coolers and ice, a battery radio, and a plan for warming or cooling your home safely.");
-if(nd.med)L.push("Medical equipment: ask your provider about backup power, and tell the utility about your needs. If it is life-threatening, call 911.");if(nd.mob)L.push("Mobility: charge mobility devices fully and arrange rides or help in advance. Stay on a floor you can leave safely.");if(nd.crit)L.push("Critical facility: confirm backup power and fuel, and contact your utility account representative before the storm.");
-$("#prep").innerHTML=`<span class="tag tag-act">Your actions</span><div class="warn" role="alert"><b>⚠ Safety:</b> Treat every downed line as live and stay at least 30 feet away. Call 911 and then your utility. Never run a generator indoors or in a garage.</div><ul>${L.map(x=>"<li>"+x+"</li>").join("")}</ul>`;
+// Build tailored "personal plan" cards that visibly appear when a need is checked.
+const anyNeed=nd.med||nd.mob||nd.crit;
+const planCards=[];
+if(nd.med)planCards.push(`<div class="need-card need-med"><b>🏥 Medical equipment plan</b><ul>
+  <li><b>Register now:</b> tell your utility you have a life-support need so you're flagged for priority restoration.</li>
+  <li><b>Backup power:</b> confirm a charged battery backup or generator, and know how long your equipment runs on it.</li>
+  <li><b>Have a Plan B:</b> identify the nearest place you could go that has power (a relative, shelter, or facility).</li>
+  <li><b>If equipment fails and it's life-threatening — call 911 immediately.</b></li></ul></div>`);
+if(nd.mob)planCards.push(`<div class="need-card need-mob"><b>♿ Mobility & accessibility plan</b><ul>
+  <li><b>Charge devices:</b> fully charge powered wheelchairs/scooters and any lift equipment before the storm.</li>
+  <li><b>Stay reachable:</b> keep a phone + charger within arm's reach and a flashlight by your chair/bed.</li>
+  <li><b>Exit plan:</b> stay on a floor you can leave without an elevator, and clear a path to the door.</li>
+  <li><b>Line up help:</b> ask a neighbor or family member to check on you and arrange a ride in advance.</li></ul></div>`);
+if(nd.crit)planCards.push(`<div class="need-card need-crit"><b>🏢 Critical facility plan</b><ul>
+  <li><b>Backup power:</b> test your generator and confirm fuel for the full expected outage window.</li>
+  <li><b>Account rep:</b> contact your utility account representative before the storm to confirm priority status.</li>
+  <li><b>Continuity:</b> protect essential systems (refrigerated supplies, servers, security) and brief your staff.</li></ul></div>`);
+if(nd.med)L.push("Medical equipment: ask your provider about backup power, and tell the utility about your needs. If it is life-threatening, call 911.");if(nd.mob)L.push("Mobility: charge mobility devices fully, keep help on call, and stay on a floor you can leave safely.");if(nd.crit)L.push("Critical facility: confirm backup power and fuel, and contact your utility account representative before the storm.");
+const prioBadge=(nd.med||nd.crit||r[10])?`<div class="prio-badge">⭐ You'd be prioritized for restoration</div>`:"";
+$("#prep").innerHTML=`<span class="tag tag-act">Your actions</span>${prioBadge}`+
+  (anyNeed?`<div class="plan-head">Your personal plan — tailored to what you checked:</div>${planCards.join("")}`:"")+
+  `<div class="warn" role="alert"><b>⚠ Safety:</b> Treat every downed line as live and stay at least 30 feet away. Call 911 and then your utility. Never run a generator indoors or in a garage.</div><ul>${L.map(x=>"<li>"+x+"</li>").join("")}</ul>`;
 const prio=nd.med||nd.crit||r[10],el=k.band>=1||prio||r[9],ch=prio?"Phone call + email + app push":k.band>=2?"Email + app push":"App push or email",tm=k.band>=2?"48 h, 24 h and 6 h before the storm":k.band==1?"24 h before the storm":"Optional: 12 h before the storm";
 const esc=[];if(prio&&R.hi>4)esc.push("Outage longer than 4 h → human welfare check");if(R.hi>48)esc.push("Estimate over 48 h → proactive call");if(cf==0)esc.push("Low confidence → route to an agent");esc.push("Estimate shifts by more than 2 h → update message");
 $("#alert").innerHTML=`<p><b>${el?"✅ You’d get proactive outage alerts":"ℹ️ Alerts are optional for you"}</b></p><p class="mut">${el?`We’d reach you by ${ch.toLowerCase()} and keep you posted ${tm.toLowerCase()}, plus whenever the estimate changes.`:"You can still opt in so you’re never left guessing — we’ll let you know before and during any outage."}</p>`;
@@ -435,14 +664,148 @@ history.push({role:"assistant",content:a});bubble("Concierge",a)}
 catch(err){thinking.remove();bubble("Concierge","I’m having trouble connecting. Let me help in simple mode instead.");history.pop();askOffline(q)}}
 // Warm offline flow: grounded answers plus an empathetic follow-up question. No key needed.
 let offStep=0;const FOLLOW=["Is anyone in your home relying on medical equipment or with mobility needs? I want to make sure you’re prioritized.","Do you have a few basics ready — phone charged, water, flashlight? I can walk you through a quick list.","How are you feeling about all this? I’m here to help you through it.","Is there anything specific you’re most worried about right now?"];
-function askOffline(q){const c=S.ctx,t=q.toLowerCase(),r=D.rows[S.i];let a;
-if(/lose|outage|power|risk|likely/.test(t)&&!/long|restor|prepar|alert|qualif/.test(t))a=`Right now this location looks ${c.bn[0].toLowerCase()} risk — about ${Math.round(c.k.p*100)}% in this scenario (an estimate, not a certainty). Many outages are short, and crews prepare ahead of storms.`;
-else if(/long|restor|how|when|time/.test(t)&&!/prepar/.test(t))a=`If power does go out, our rough estimate is about ${c.etr}. That’s an estimate and often it’s quicker. You won’t be in the dark without updates.`;
-else if(/prepar|do|ready|safe/.test(t)&&!/qualif|alert/.test(t))a=`A few simple things help a lot: ${c.L.slice(0,2).join(" ")} You’ve got this.`;
-else if(/alert|qualif|notif/.test(t))a=c.el?"Good news — this situation qualifies for proactive outage alerts, so we’d keep you updated.":"You can opt in to outage alerts so you’re never left guessing.";
-else if(/scared|worried|anxious|nervous|afraid|stress|alone|help/.test(t))a="That’s completely understandable, and you’re not alone in this. Let’s take it one step at a time — I’ll stay with you.";
-else a="I’m here to help with outage risk, restoration, getting prepared, and staying calm. For any emergency or downed line, call 911 and keep 30 feet away.";
-setTimeout(()=>{bubble("Concierge",a+"\n\n"+FOLLOW[offStep%FOLLOW.length]);offStep++},150)}
+/* =========================================================================
+   Smarter offline concierge (no API key needed).
+   A scored intent matcher across many topics. Each handler builds its answer
+   from the LIVE scenario (risk %, confidence, restoration range, prep tips,
+   storm state, declared needs), so answers are specific, not canned. Safety
+   and emergencies always take priority. Keeps light memory so it varies
+   wording and follow-ups instead of repeating.
+   ========================================================================= */
+/* =========================================================================
+   Smarter offline concierge (no API key needed). This is the FALLBACK when a
+   Claude API key is configured, and the MAIN engine when one isn't.
+   Upgrades:
+     (1) Conversation MEMORY  — resolves vague follow-ups ("why?", "and my mom?")
+     (2) FUZZY matching       — synonyms + typo tolerance, fewer misses
+     (3) MULTI-INTENT         — answers more than one thing in a single message
+   Answers are built from the live scenario (risk %, confidence, restoration,
+   prep tips, storm state, declared needs). Safety always wins.
+   ========================================================================= */
+let lastTopic=null;               // (1) memory: what we were just talking about
+
+// --- (2) normalize + light typo tolerance ---------------------------------
+function levenshtein(a,b){const m=a.length,n=b.length;if(!m)return n;if(!n)return m;
+  let p=Array.from({length:n+1},(_,i)=>i);for(let i=1;i<=m;i++){let prev=p[0];p[0]=i;
+    for(let j=1;j<=n;j++){const tmp=p[j];p[j]=Math.min(p[j]+1,p[j-1]+1,prev+(a[i-1]===b[j-1]?0:1));prev=tmp;}}return p[n];}
+// Common misspellings / synonyms -> canonical word used by the matcher.
+const SYN={generater:"generator",genarator:"generator",generador:"generator",medecal:"medical",medicle:"medical",
+  oxigen:"oxygen",restauration:"restoration",restoretion:"restoration",prepair:"prepare",prepaire:"prepare",
+  freezor:"freezer",refridgerator:"refrigerator",batery:"battery",flashlite:"flashlight",elderley:"elderly",
+  wat:"what",wht:"what",u:"you",ur:"your",pls:"please",thx:"thanks", wheelchiar:"wheelchair"};
+function normalize(q){
+  let words=q.toLowerCase().replace(/[^a-z0-9 ]/g," ").split(/\s+/).filter(Boolean);
+  const VOCAB=["generator","medical","oxygen","restoration","prepare","freezer","refrigerator","flashlight","elderly","wheelchair","outage","battery","power"];
+  return words.map(w=>{
+    if(SYN[w])return SYN[w];
+    for(const v of VOCAB){if(w.length>4&&Math.abs(w.length-v.length)<=2&&levenshtein(w,v)<=2)return v;}
+    return w;
+  }).join(" ");
+}
+
+// --- Intent definitions (keywords + scenario-aware answer) ----------------
+function buildIntents(){
+  const c=S.ctx,r=D.rows[S.i],nd=needs();
+  const band=c?c.bn[0]:"Moderate",pct=c?Math.round(c.k.p*100):null,conf=c?CN[c.cf]:"Medium",etr=c?c.etr:"a few hours";
+  const stormOn=typeof storm!=="undefined"&&storm.on;
+  return [
+    {topic:"emergency",safety:true,kw:["downed","wire down","line down","power line","sparking","fell","arcing","gas leak","smell gas","fire","smoke","911","injured","unconscious"],
+     a:()=>"⚠️ If a power line is down or sparking, or you smell gas, treat it as dangerous: stay at least 30 feet away, keep kids and pets back, and call 911 first, then your utility. Are you and everyone with you safely away from it right now?"},
+    {topic:"generator",kw:["generator","genny"],
+     a:()=>"Generators are a big help in a long outage, with one safety rule that really matters: run it outdoors only, far from windows and doors, never in a garage or indoors, because of carbon-monoxide risk. Keep it dry and don't plug it straight into a wall outlet. Do you already have one, or thinking about getting one?"},
+    {topic:"medical",kw:["medical","oxygen","life support","life-support","cpap","dialysis","insulin","ventilator","nebulizer","equipment"],
+     a:()=>`Since you rely on powered medical equipment, three things matter most: tell your utility you have a life-support need so you're prioritized, arrange backup power or a place you can go, and keep devices charged now.${c&&c.el?" This location already qualifies for proactive alerts, which helps.":""} If equipment fails and it's life-threatening, call 911. Do you have a backup power option lined up?`},
+    {topic:"mobility",kw:["mobility","wheelchair","disabled","accessibility","elderly","senior","walk"],
+     a:()=>"For mobility or accessibility needs, plan ahead: charge any powered mobility devices fully, keep a flashlight and phone within reach, stay on a floor you can leave safely, and line up someone to check on you. Want a short readiness list?"},
+    {topic:"family",kw:["baby","infant","kids","children","child","toddler","pregnant","mom","dad","grandma","grandpa","parent"],
+     a:()=>"For family members at home, focus on comfort and temperature: keep water, snacks, any medications, and a flashlight easy to reach, and plan a room you can keep warm or cool. Is anyone especially sensitive to heat or cold?"},
+    {topic:"pets",kw:["pet","pets","dog","cat","animal"],
+     a:()=>"Good call thinking about pets — keep extra water and food out, a leash or carrier ready, and plan a comfortable spot if it gets hot or cold. How many pets are you caring for?"},
+    {topic:"risk",kw:["lose power","will i","going to","outage","risk","likely","chance","danger","happen"],
+     a:()=>`Right now this spot looks ${band.toLowerCase()} risk — about ${pct}% in this scenario, and we're ${conf.toLowerCase()}-confidence in that.${pct>=65?" That's on the higher side, so it's worth getting ready.":pct>=40?" That's a real but not certain chance.":" That's fairly low, but worth a heads-up."} It's an estimate, not a certainty. Want me to walk you through getting ready?`},
+    {topic:"restoration",kw:["how long","restore","restoration","back on","back up","when will","duration","hours","days"],
+     a:()=>`If the power goes out, our rough estimate is about ${etr}, from when the outage starts — often quicker. Crews fix the biggest problems first so the most homes come back soonest. Want to know what could make it faster or slower?`},
+    {topic:"why",kw:["why","how do you know","what makes","reason","factor","high","elevated","explain"],
+     a:()=>{const top=c?c.k.c.map((v,i)=>[NM[i],v]).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1]))[0]:null;
+       return `The biggest driver here is "${(top?top[0]:"your area's history").toLowerCase()}". Your lines are ${r&&r[4]?"overhead, which storms hit more easily":"underground, usually better protected"}, and we factor in the storm's strength. It's a statistical screen from past storms, not a guarantee. Want the full list of what moves your risk?`}},
+    // Location-aware: summarize the specific selected spot using its real data.
+    {topic:"location",kw:["my location","my area","my spot","my place","my home","my house","where am i","this location","about here","my address","this spot","this area","tell me about"],
+     a:()=>{if(!r)return "Pick a spot on the Map tab (type an address or tap the map) and I'll tell you all about it.";
+       const dmg=D.circ&&D.circ[r[3]]?D.circ[r[3]][2]:null;
+       const nearM=r[11], svc=r[4]?"overhead lines (more exposed to storms)":"underground lines (usually better protected)";
+       const prio=r[10]?" This spot is flagged as a life-support/critical location, so it would be prioritized for restoration.":r[9]?" It's near a priority facility (like a hospital or fire station), which can affect restoration order nearby.":"";
+       let bits=[`Here's your selected spot (ID P-${r[0]}): outage risk is ${band} (~${pct}%), ${conf.toLowerCase()} confidence.`,
+         `It's served by ${svc}.`];
+       if(dmg!=null)bits.push(`Its circuit has ${dmg} past damage record${dmg===1?"":"s"} on file.`);
+       if(nearM!=null&&nearM<9999)bits.push(nearM<400?"Past storm damage has occurred very close by.":nearM<2000?"There's past damage within about a mile.":"The nearest past damage is a fair distance away.");
+       let txt=bits.join(" ")+prio;
+       return txt+" Want the risk factors, a restoration estimate, or a prep plan for here?";}},
+    {topic:"service",kw:["overhead","underground","lines","wires","buried","above ground","poles"],
+     a:()=>r&&r[4]?"Your location is served by overhead lines — they're more exposed to wind and falling trees, which raises storm risk a bit. Want to know how to prepare for that?":"Your location is served by underground lines — generally better protected from storms, though they can take longer to repair if they do fail. Anything else about your spot?"},
+    {topic:"history",kw:["past outages","history","before","how often","happened here","past damage","previous"],
+     a:()=>{const dmg=r&&D.circ&&D.circ[r[3]]?D.circ[r[3]][2]:null;
+       if(dmg==null)return "I don't have a clean past-outage count for this exact spot, but risk is estimated from historical storm damage in the area. Want the risk factors?";
+       return `This location's circuit has ${dmg} past damage record${dmg===1?"":"s"} on file${r[11]<9999?(r[11]<400?", and storms have caused damage very close to you before":""):""}. That history is one of the things that shapes your risk estimate. Want to see the full factor breakdown?`}},
+    {topic:"priority",kw:["priority","life support","critical facility","hospital nearby","am i priority","prioritized","medical priority"],
+     a:()=>r&&r[10]?"Yes, this location is flagged as a life-support/critical customer, so it would be prioritized for restoration. Make sure your life-support status is current with your utility. Do you want a backup-power plan too?":r&&r[9]?"This spot isn't flagged life-support, but it's near a priority facility (like a hospital or fire station), which can mean faster restoration in the area. Want to register a medical-priority need?":"This location isn't currently flagged as priority. If someone here relies on medical equipment, you can register a life-support need with your utility to be prioritized. Want to know how?"},
+    {topic:"prepare",kw:["prepare","get ready","ready","should i do","what do i do","checklist","kit","supplies","stock"],
+     a:()=>{const tips=c?c.L.slice(0,3):["Charge phones and keep a flashlight handy.","Store water and non-perishable food."];return `Here's where I'd start for your situation:\n• ${tips.join("\n• ")}\nWant the extended list for a longer outage?`}},
+    {topic:"alerts",kw:["alert","alerts","qualify","notification","notify","text me","email me","sign up","warn me"],
+     a:()=>c&&c.el?"Good news — this scenario qualifies for proactive outage alerts, so we'd keep you posted before and during. You can turn on browser alerts, or use the \"Get alerts\" button up top to sign up by email.":"You can opt in to outage alerts so you're never left guessing — the \"Get alerts\" button at the top sets up email, or turn on browser alerts in Settings."},
+    {topic:"food",kw:["food","fridge","freezer","refrigerator","spoil","eat"],
+     a:()=>"Keep the fridge and freezer closed as much as possible — a full freezer holds safe temps about 48 hours, a fridge about 4. Group items together and move essentials to a cooler with ice if it runs long. Want a what's-safe-to-keep rundown?"},
+    {topic:"water",kw:["water","drink","hydrate"],
+     a:()=>"Store about a gallon of water per person per day for three days. If a big storm's coming, fill clean jugs or the bathtub ahead of time, and set some aside for pets. How many people should we plan for?"},
+    {topic:"cost",kw:["cost","bill","pay","money","price","free","expensive"],
+     a:()=>"This guidance and the outage alerts are free — nothing to pay here. Billing questions go to your utility directly. Is there a cost concern I can help ease?"},
+    {topic:"storm",kw:["storm","simulation","moving","coming","weather","hurricane"],
+     a:()=>stormOn?"The storm simulation is running — a pretend storm (not live weather) so you can watch risk shift as it moves toward you. The numbers update live as the eye gets closer. Want to know what happens when it reaches you?":"You can watch a pretend storm move across your area on the Storm tab — a simulation, not live weather, and the risk updates as it approaches. Want to try it?"},
+    {topic:"support",kw:["scared","worried","anxious","nervous","afraid","stress","stressed","alone","overwhelmed","panic"],
+     a:()=>"That's completely understandable — storms are stressful, and you're not alone. Let's take it one small step at a time and I'll stay with you. What's weighing on you most right now?"},
+    {topic:"thanks",kw:["thank","thanks","appreciate","awesome","perfect","great"],
+     a:()=>"You're very welcome — glad I could help. Anything else you'd like to be ready for?"},
+    {topic:"help",kw:["what can you","who are you","help with","options","what do you do"],
+     a:()=>"I can help with four things: whether you might lose power, how long restoration could take, how to get ready, and setting up alerts — all for your selected location. What would you like to start with?"},
+    {topic:"greeting",kw:["hi","hello","hey","yo","howdy"],
+     a:()=>"Hi there! I'm your outage concierge. I can check your storm risk, estimate how long power might be out, help you make a plan, and set up alerts. What's on your mind?"},
+  ];
+}
+
+// --- Score an intent against the (normalized) text ------------------------
+function scoreIntent(intent,t){let s=0;for(const k of intent.kw){if(t.includes(" "+k+" ")||t.includes(k+" ")||t.includes(" "+k)||t===k)s+= (k.includes(" ")?2:1);}return s;}
+
+// (3) multi-intent + (1) memory: returns an array of answers (usually one).
+function offlineReplies(q){
+  const t=" "+normalize(q)+" ";
+  const intents=buildIntents();
+  let scored=intents.map(it=>({it,score:scoreIntent(it,t)})).filter(x=>x.score>0).sort((a,b)=>b.score-a.score);
+  // Safety always jumps to the front.
+  const emerg=scored.find(x=>x.it.safety);if(emerg){lastTopic="emergency";return [emerg.it.a()];}
+  if(scored.length===0){
+    // (1) memory: a bare "why?/how/what about/and...?" refers to the last topic.
+    const nq=normalize(q).trim();
+    if(lastTopic&&(/^(why|how|and|what about|ok|okay|more|tell me more|really|so|then|what else|like what|such as|explain)\b/.test(nq)||nq.split(" ").length<=3)){
+      const prev=intents.find(it=>it.topic===lastTopic);if(prev)return [prev.a()];
+    }
+    return null;
+  }
+  // (3) answer up to two distinct strong intents ("will I lose power and how long?")
+  const out=[];const picked=[];
+  for(const x of scored){if(out.length>=2)break;if(x.score>=scored[0].score-1){out.push(x.it.a());picked.push(x.it.topic);}}
+  lastTopic=picked[0]||lastTopic;
+  return out;
+}
+// Smart, non-repeating follow-ups (only used when the answer didn't ask one).
+const FOLLOWS=["Is anyone home relying on medical equipment or with mobility needs? I want to make sure you're prioritized.","Do you have the basics ready — phone charged, water, a flashlight?","How are you feeling about the storm? I'm here to help.","Anything specific you're most worried about?"];
+function askOffline(q){
+  const parts=offlineReplies(q);
+  let reply = (parts&&parts.length)
+    ? parts.join("\n\n")
+    : "I can help with your outage risk, how long power might be out, getting prepared, and alerts. For any emergency or a downed line, call 911 and stay 30 feet away. What would you like to know?";
+  // Add a follow-up only if the answer didn't already end with a question.
+  if(!/\?\s*$/.test(reply.trim())){const f=FOLLOWS[offStep%FOLLOWS.length];reply+="\n\n"+f;offStep++;}
+  setTimeout(()=>bubble("Concierge",reply),180);
+}
 // ask() always prints the user's message once, then routes to Claude (backend or key) or offline.
 function ask(q){bubble("You",q,"u");const {key}=aiCfg();if(backend.chat||key)askAI(q);else askOffline(q)}
 $("#chips").querySelectorAll("button").forEach(b=>b.onclick=()=>ask(b.textContent));$("#go").onclick=()=>{const v=$("#q").value.trim();if(v){ask(v);$("#q").value=""}};$("#q").onkeydown=e=>{if(e.key=="Enter")$("#go").click()};
@@ -452,26 +815,101 @@ function aiStatus(){}
 const canNotify="Notification"in window;
 // Short, plain messages anyone can understand.
 function simpleMsg(band){return["⚡ Low risk right now. Nothing to do — we’ll tell you if that changes.","⚡ A storm may affect your power. Charge your phone and keep a flashlight handy.","⚡ Outages are likely in your area. Charge devices and fill some water now.","⚡ High outage risk near you. Get ready now: charge phones, water, flashlight. Stay 30 ft from any downed line."][band]}
-function notifState(){const el=$("#notifState");if(!canNotify){el.textContent="not supported in this browser";return}
-el.textContent=Notification.permission==="granted"?"on":Notification.permission==="denied"?"blocked (allow in browser settings)":"off"}
-function showNote(title,body){if(!canNotify||Notification.permission!=="granted")return false;try{new Notification(title,{body,tag:"oc-"+Date.now()});return true}catch(e){console.warn("Notification failed:",e);return false}}
-async function enableNotes(){if(!canNotify){$("#notifState").textContent="not supported in this browser";return}
-if(Notification.permission==="granted"){showNote("Alerts are on ✅","We’ll let you know if a storm heads your way.");notifState();return}
-const p=await Notification.requestPermission();notifState();
-if(p==="granted")showNote("Alerts are on ✅","We’ll let you know if a storm heads your way.");else if(p==="denied")$("#notifState").textContent="blocked (allow in browser settings)"}
-$("#notifOn").onclick=enableNotes;
-$("#notifTest").onclick=async()=>{const ns=$("#notifState");if(!canNotify){ns.textContent="❌ Not supported in this browser";return}if(Notification.permission==="denied"){ns.textContent="❌ Blocked — open System Settings → Notifications and allow your browser";return}if(Notification.permission!=="granted"){ns.textContent="Requesting permission…";const p=await Notification.requestPermission();notifState();if(p!=="granted"){ns.textContent="❌ Permission not granted — click ‘Turn on alerts’ first";return}}const k=S.ctx?S.ctx.k.band:2;const ok=showNote("⚡ Outage Concierge test",simpleMsg(k));if(ok){ns.textContent="✅ Test sent — check your notifications";notifiedForStorm=false}else{ns.textContent="❌ Notification didn’t fire — check macOS Notifications settings"}};
-// Fire an alert once when the moving storm first reaches the selected location.
-let notifiedForStorm=false;// reset when user picks a new location so they get notified for their spot
-const _origUpd=typeof upd==="function"?upd:null;
-function maybeStormNotify(){if(!$("#notifStorm").checked||!storm.on)return;const r=D.rows[S.i],d=distKm(storm.lat,storm.lon,r[2],r[1]);
-if(d<storm.rad&&!notifiedForStorm){notifiedForStorm=true;const msg=simpleMsg(Math.max(2,S.ctx?S.ctx.k.band:2));showNote("⚡ Storm reaching your area — "+new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"}),msg);
-// Also email subscribers via the backend (if one is running). Server throttles duplicates.
-if(backend.up)fetch("/api/storm-alert",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({area:"",message:msg,subject:"⚡ Storm heading your way"})}).then(r=>r.json()).then(j=>{if(j&&j.sent&&j.sent.email)bubble("Concierge","📧 Sent a storm warning email to subscribers.")}).catch(()=>{})}
-if(d>=storm.rad)notifiedForStorm=false}
-notifState();
-// ---- Email sign-up (needs the backend to actually send) ----
-function revealSub(){$("#subBox").style.display="block";if(!backend.up){const hint=document.createElement("p");hint.className="mut";hint.style="font-size:12px;margin:4px 0";hint.textContent="⚠️ The backend server isn’t running — sign-up will be saved but no real email will be sent. Run the backend to enable live email.";const box=$("#subBox");if(!box.querySelector(".backend-hint")){hint.className+=" backend-hint";box.insertBefore(hint,box.firstChild)}}}
+function notifState(){/* legacy no-op: status now lives in Settings (#setNotifState) */}
+function showNote(title,body){if(!canNotify||Notification.permission!=="granted")return false;try{new Notification(title,{body,tag:"oc-"+Date.now()});return true}catch(e){return false}}
+async function enableNotes(){if(!canNotify)return;
+if(Notification.permission==="granted"){showNote("Alerts are on ✅","We’ll let you know if a storm heads your way.");return}
+await Notification.requestPermission();
+if(Notification.permission==="granted")showNote("Alerts are on ✅","We’ll let you know if a storm heads your way.")}
+
+// ---- Notification center: live bar + inbox history (localStorage) ----
+const INBOX_KEY="oc_inbox";
+function loadInbox(){try{return JSON.parse(localStorage.getItem(INBOX_KEY)||"[]")}catch(e){return[]}}
+function saveInbox(a){try{localStorage.setItem(INBOX_KEY,JSON.stringify(a.slice(0,50)))}catch(e){}}
+let inbox=loadInbox();
+function updateBadge(){const n=inbox.filter(x=>!x.read).length,b=$("#inboxBadge");if(!b)return;if(n>0){b.hidden=false;b.textContent=n>9?"9+":n}else b.hidden=true}
+function renderInbox(){const list=$("#inboxList"),empty=$("#inboxEmpty");if(!list)return;
+  list.innerHTML=inbox.map(x=>`<div class="inbox-item"><div>${x.text.replace(/</g,"&lt;")}</div><div class="when">${new Date(x.t).toLocaleString()}</div></div>`).join("");
+  if(empty)empty.style.display=inbox.length?"none":"block"}
+// Central entry point: log to inbox, optionally show a banner and/or a browser notification.
+function notify(text,{kind="alert",banner=true,browser=false,title="Outage Concierge"}={}){
+  inbox.unshift({text,t:Date.now(),read:false,kind});saveInbox(inbox);updateBadge();renderInbox();
+  const wantBanner=(!$("#setNotifBanner")||$("#setNotifBanner").checked);
+  if(banner&&wantBanner)showToast(text,kind);
+  if(browser)showNote(title,text);
+}
+function showToast(text,kind){const bar=$("#notifBar");if(!bar)return;
+  const t=document.createElement("div");t.className="toast"+(kind==="info"?" info":"");
+  t.innerHTML=`<span class="tx"></span><button aria-label="Dismiss">✕</button>`;
+  t.querySelector(".tx").textContent=text;
+  t.querySelector("button").onclick=()=>t.remove();
+  bar.appendChild(t);
+  setTimeout(()=>{if(t.isConnected)t.remove()},9000);
+}
+
+// ---- Settings panel: theme (light/dark/system) + notifications, from any tab ----
+(function(){
+  const panel=$("#settingsPanel"),overlay=$("#settingsOverlay"),btn=$("#settingsBtn");
+  // Theme: "" (system) applies no data-theme so the CSS prefers-color-scheme rule wins.
+  function applyTheme(mode){
+    if(mode==="light")document.documentElement.setAttribute("data-theme","light");
+    else if(mode==="dark")document.documentElement.setAttribute("data-theme","dark");
+    else document.documentElement.removeAttribute("data-theme");
+    document.querySelectorAll("[data-theme-choice]").forEach(b=>
+      b.setAttribute("aria-checked", b.dataset.themeChoice===(mode||"system")?"true":"false"));
+    try{localStorage.setItem("oc_theme",mode||"system")}catch(e){}
+  }
+  // Apply saved preference immediately on load.
+  applyTheme(localStorage.getItem("oc_theme")||"system");
+  document.querySelectorAll("[data-theme-choice]").forEach(b=>
+    b.onclick=()=>applyTheme(b.dataset.themeChoice));
+
+  // Color palette: sets data-palette on <html> (default removes the attribute).
+  function applyPalette(p){
+    if(!p||p==="default")document.documentElement.removeAttribute("data-palette");
+    else document.documentElement.setAttribute("data-palette",p);
+    document.querySelectorAll("[data-palette-choice]").forEach(b=>
+      b.setAttribute("aria-checked", b.dataset.paletteChoice===(p||"default")?"true":"false"));
+    try{localStorage.setItem("oc_palette",p||"default")}catch(e){}
+  }
+  applyPalette(localStorage.getItem("oc_palette")||"default");
+  document.querySelectorAll("[data-palette-choice]").forEach(b=>
+    b.onclick=()=>applyPalette(b.dataset.paletteChoice));
+
+  function openSettings(){panel.classList.add("open");panel.setAttribute("aria-hidden","false");overlay.hidden=false;btn.setAttribute("aria-expanded","true");syncNotif();$("#settingsClose").focus()}
+  function closeSettings(){panel.classList.remove("open");panel.setAttribute("aria-hidden","true");overlay.hidden=true;btn.setAttribute("aria-expanded","false");btn.focus()}
+  btn.onclick=openSettings;$("#settingsClose").onclick=closeSettings;overlay.onclick=closeSettings;
+  addEventListener("keydown",e=>{if(e.key==="Escape"&&panel.classList.contains("open"))closeSettings()});
+
+  // Notification controls inside settings reuse the app's existing helpers.
+  function syncNotif(){const el=$("#setNotifState");if(!el)return;
+    el.textContent = !("Notification"in window)?"not supported":
+      Notification.permission==="granted"?"on":Notification.permission==="denied"?"blocked (allow in browser settings)":"off";}
+  $("#setNotifOn").onclick=async()=>{await enableNotes();syncNotif()};
+  $("#setNotifTest").onclick=()=>{const k=S.ctx?S.ctx.k.band:0;notify(simpleMsg(Math.max(1,k)),{kind:"info",browser:true,title:"Test alert"})};
+  syncNotif();
+})();
+// Notify once when the moving storm first reaches the selected location.
+// The storm loops (it wraps back west), which previously re-armed the flag and
+// spammed a new browser notification on every pass. Now we throttle: the
+// browser pop-up fires at most once per cooldown window, so a looping/replayed
+// storm won't keep buzzing. The in-app banner follows the same throttle.
+let notifiedForStorm=false,lastStormNotifyAt=0;
+const STORM_NOTIFY_COOLDOWN_MS=5*60*1000; // 5 minutes
+function maybeStormNotify(){const sc=$("#setNotifStorm");if((sc&&!sc.checked)||!storm.on)return;const r=D.rows[S.i],d=distKm(storm.lat,storm.lon,r[2],r[1]);
+if(d<storm.rad&&!notifiedForStorm){notifiedForStorm=true;const msg=simpleMsg(Math.max(2,S.ctx?S.ctx.k.band:2));
+const now=Date.now(),fresh=(now-lastStormNotifyAt)>STORM_NOTIFY_COOLDOWN_MS;
+if(fresh){lastStormNotifyAt=now;
+  notify("⚡ Storm reaching your area — "+msg,{kind:"alert",browser:true,title:"⚡ Storm reaching your area"});
+  // Email subscribers via the backend (if running). Server also throttles duplicates.
+  if(backend.up)fetch("/api/storm-alert",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({area:"",message:msg,subject:"⚡ Storm heading your way"})}).then(r=>r.json()).then(j=>{if(j&&j.sent&&j.sent.email)bubble("Concierge","📧 Sent a storm warning email to subscribers.")}).catch(()=>{})
+}}
+// Re-arm when the eye moves well away, but the cooldown above still prevents spam on loops.
+if(d>=storm.rad*1.4)notifiedForStorm=false}
+// Reset the storm-notify throttle when the user explicitly resets the storm.
+function resetStormNotify(){notifiedForStorm=false;lastStormNotifyAt=0}
+// ---- Email sign-up (fields live in the Settings panel) ----
+function revealSub(){/* email sign-up is always visible in Settings now */}
 $("#subBtn").onclick=async()=>{const email=$("#subEmail").value.trim();
 if(!email){$("#subMsg").textContent="Enter an email address.";return}
 $("#subMsg").textContent="Signing you up…";
@@ -488,7 +926,24 @@ const j=await r.json();
 if(!r.ok){$("#subMsg").textContent=j.detail||"Test failed.";return}
 $("#subMsg").textContent=j.sent?"✅ Test email sent — check your inbox (and spam).":"ℹ️ Server is in demo mode, so no real email went out.";
 }catch(e){$("#subMsg").textContent="Couldn’t reach the server."}};
-notifState();revealSub();
+revealSub();
+// ---- Inbox panel open/close + initial render ----
+(function(){
+  const panel=$("#inboxPanel"),overlay=$("#inboxOverlay"),btn=$("#inboxBtn");
+  function open(){inbox=inbox.map(x=>({...x,read:true}));saveInbox(inbox);updateBadge();renderInbox();
+    panel.classList.add("open");panel.setAttribute("aria-hidden","false");overlay.hidden=false;btn.setAttribute("aria-expanded","true");$("#inboxClose").focus()}
+  function close(){panel.classList.remove("open");panel.setAttribute("aria-hidden","true");overlay.hidden=true;btn.setAttribute("aria-expanded","false");btn.focus()}
+  btn.onclick=open;$("#inboxClose").onclick=close;overlay.onclick=close;
+  $("#inboxClear").onclick=()=>{inbox=[];saveInbox(inbox);updateBadge();renderInbox()};
+  // Header "Get alerts" button opens the dedicated email sign-up dialog.
+  const sp=$("#signupPanel"),so=$("#signupOverlay"),sb=$("#signupBtn");
+  function openSignup(){sp.classList.add("open");sp.setAttribute("aria-hidden","false");so.hidden=false;sb&&sb.setAttribute("aria-expanded","true");setTimeout(()=>$("#subEmail")&&$("#subEmail").focus(),260)}
+  function closeSignup(){sp.classList.remove("open");sp.setAttribute("aria-hidden","true");so.hidden=true;sb&&sb.setAttribute("aria-expanded","false")}
+  if(sb)sb.onclick=openSignup;$("#signupClose").onclick=closeSignup;so.onclick=closeSignup;
+  addEventListener("keydown",e=>{if(e.key==="Escape"&&sp.classList.contains("open"))closeSignup()});
+  addEventListener("keydown",e=>{if(e.key==="Escape"&&panel.classList.contains("open"))close()});
+  renderInbox();updateBadge();
+})();
 // ---- One-click demo scenarios (make it easy for judges to see the range) ----
 function selectIdx(i){S.i=Math.max(0,i);$("#pick").value=S.i;if(typeof syncControls==="function")syncControls();upd();map.panTo([D.rows[S.i][2],D.rows[S.i][1]]);location.hash="#map"}
 $("#demoHigh").onclick=()=>{$("#sev").value=4;S.sev=4;baseCell=null;ensureBase();
@@ -499,7 +954,7 @@ $("#demoLS").onclick=()=>{const bi=D.rows.findIndex(r=>r[10]);$("#sev").value=3;
 $("#med").checked=true;$("#crit").checked=false;$("#mob").checked=false;selectIdx(bi>=0?bi:0);
 $("#geomsg").innerHTML="🏥 <b>Demo:</b> a declared life-support customer. Note the tailored prep steps and priority alerts — all without revealing who or where they are."};
 // ---- Simple hash router: show one view at a time, highlight its tab ----
-const VIEWS=["map","storm","prepare","alerts"];
+const VIEWS=["map","storm","prepare"];
 function showView(v){if(!VIEWS.includes(v))v="map";
 VIEWS.forEach(x=>$("#view-"+x).classList.toggle("active",x===v));
 document.querySelectorAll("nav.tabs a").forEach(a=>{const on=a.dataset.view===v;a.classList.toggle("active",on);if(on)a.setAttribute("aria-current","page");else a.removeAttribute("aria-current")});
@@ -507,7 +962,8 @@ document.querySelectorAll("nav.tabs a").forEach(a=>{const on=a.dataset.view===v;
 const slot=v==="storm"?$("#mapSlotStorm"):$("#mapSlotMap");const mapEl=$("#map");
 if(slot&&mapEl&&mapEl.parentNode!==slot)slot.appendChild(mapEl);
 // Leaflet must recompute size after its container becomes visible / moves.
-if(v==="map"||v==="storm")setTimeout(()=>map.invalidateSize(),30)}
+// Call a couple of times across frames so the tiles settle without lag/half-draw.
+if(v==="map"||v==="storm"){requestAnimationFrame(()=>map.invalidateSize());setTimeout(()=>map.invalidateSize(),120);setTimeout(()=>map.invalidateSize(),320)}}
 // Sidebar show/hide. ✕ collapses it (and reclaims the space) at any width; 💬 reopens it.
 function openSidebar(){$("#sidebar").classList.remove("collapsed");$("#sidebar").classList.add("open");document.body.classList.remove("sb-collapsed");setTimeout(()=>map&&map.invalidateSize(),260)}
 function closeSidebar(){$("#sidebar").classList.add("collapsed");$("#sidebar").classList.remove("open");document.body.classList.add("sb-collapsed");setTimeout(()=>map&&map.invalidateSize(),260)}
@@ -516,5 +972,8 @@ $("#sbClose").onclick=closeSidebar;
 function routeFromHash(){showView((location.hash||"#map").slice(1))}
 addEventListener("hashchange",routeFromHash);
 S.i=D.rows.slice(0,40).findIndex(r=>r[12].length>3);S.i=Math.max(0,S.i);$("#pick").value=S.i;upd();
+// On first load, zoom to the selected spot so its marker is actually visible
+// (otherwise it's a tiny ring lost in the fully-zoomed-out region view).
+setTimeout(()=>{try{const r=D.rows[S.i];map.setView([r[2],r[1]],14,{animate:false});map.invalidateSize();}catch(e){}},200);
 routeFromHash();
 </script></body></html>
