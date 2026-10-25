@@ -322,9 +322,9 @@ body.sb-collapsed #notifBar{right:16px}
   </div>
 </div>
 <nav class="tabs" aria-label="Sections"><div class="wrap">
-<a href="#map" data-view="map">🗺️ Map &amp; Risk</a>
-<a href="#storm" data-view="storm">🌪️ Storm</a>
-<a href="#prepare" data-view="prepare">🧰 Prepare</a>
+<a href="#map" data-view="map">Map &amp; Risk</a>
+<a href="#storm" data-view="storm">Simulate Storm</a>
+<a href="#prepare" data-view="prepare">Prepare</a>
 </div></nav>
 <main>
 
@@ -369,8 +369,8 @@ body.sb-collapsed #notifBar{right:16px}
 <p class="hint">Tell us what applies to you so your plan fits. We only use what you check here.</p>
 <div class="row"><label><input type="checkbox" id="med"> someone needs power for medical equipment</label><label><input type="checkbox" id="mob"> mobility or accessibility needs</label><label><input type="checkbox" id="crit"> this is a critical facility</label></div><div id="prep" role="region" aria-label="Preparation steps" aria-live="polite"></div></section>
 <details open><summary>How this works, your privacy & responsible use</summary>
-<div class="cols"><div><b>What’s real</b><br>Your area’s past storm damage and the equipment that feeds your power. Not the live grid.</div><div><b>What’s estimated</b><br>Risk and repair-time ranges come from past storms. Treat them as rough guides, not promises.</div><div><b>Your part</b><br>Follow the checklists and alerts to stay safe and prepared before and during an outage.</div></div>
-<div class="cols" style="margin-top:10px"><div><b>🔒 Your privacy</b><br>Locations are shown as ~300&nbsp;m neighborhood areas, not exact homes. IDs are hashed, and we never show names, addresses, or account details — even for life-support locations.</div><div><b>📊 Confidence</b><br>Every risk reading shows a confidence level based on how much nearby history supports it.</div><div><b>⚠️ When we’re unsure</b><br>If there isn’t enough data for a reliable read, we say so and tell you to check your utility’s official outage map.</div></div>
+<div class="cols"><div><b>Confirmed facts</b><br>Your area’s past storm damage history and the upstream equipment feeding your circuit — pulled from Appalachian Power’s GIS data.</div><div><b>Model estimates</b><br>Outage risk and restoration ranges are modeled from 1,645 historical damage records and STORMS labor-hour data. Treat them as informed estimates, not guarantees.</div><div><b>Your actions</b><br>Checklists are tailored to your declared needs (medical, mobility, critical). Alerts follow utility notification rules — proactive for elevated risk or priority customers.</div></div>
+<div class="cols" style="margin-top:10px"><div><b>🔒 Your privacy</b><br>Your address is only used to find the nearest location — it is never stored or displayed. Premise IDs are hashed; names, account numbers, and exact addresses are never shown.</div><div><b>📊 Confidence &amp; uncertainty</b><br>Every risk reading shows a confidence level. Low confidence means limited nearby history — we say so explicitly and direct you to your utility’s official outage map.</div><div><b>🤖 AI chat</b><br>Concierge answers are grounded in your current scenario data. With a backend API key it uses Claude; otherwise a warm deterministic mode. It never invents outage data or exact restoration times.</div></div>
 <p class="mut" id="model"></p></details>
 </div></section>
 
